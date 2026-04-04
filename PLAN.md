@@ -74,7 +74,7 @@ Each stored vector should carry metadata to support filtering at query time:
 | `created_utc` | integer | Unix timestamp |
 | `author` | string | |
 | `url` | string | |
-| `parent_id` | string | null for top-level items |
+| `parent_id` | string | null for posts/root items; set for comments (post or comment parent) |
 | `depth` | integer | 0 for posts; 1+ for comments |
 
 This metadata enables filtering by recency, score, or thread structure at query time.
@@ -86,7 +86,7 @@ This metadata enables filtering by recency, score, or thread structure at query 
 1. Embed the user's query using the same embedding model used at ingest time
 2. Search the vector store for the top-k most similar chunks
 3. Optionally filter results by metadata (e.g. minimum score, date range)
-4. If a matching chunk is a comment, optionally fetch its parent post for additional context
+4. If a matching chunk is a comment, optionally fetch its ancestor chain (parent comments up to the root post) for additional context
 5. Pass the retrieved chunks to an LLM along with the original query
 
 ---
