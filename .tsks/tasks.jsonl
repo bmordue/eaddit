@@ -1,0 +1,10 @@
+{"id":"1","title":"Set up reproducible dev environment","status":"todo","created_at":"2026-04-07T14:53:10.095444283Z","doc_hash":"e1929b1f1569434b4ad95640100075577ff2ab7e1972d2f77e208ec538502635"}
+{"id":"2","title":"Implement Reddit data collector","status":"todo","dependencies":["1"],"created_at":"2026-04-07T14:53:17.415721767Z","doc_hash":"3bc8ca1d8c16a6c28f43324dc00e66e2773e691ece1f0e47d936acfe37d601a4"}
+{"id":"3","title":"Implement chunker with thread-aware comment handling","status":"todo","dependencies":["2"],"created_at":"2026-04-07T14:53:42.597197001Z","doc_hash":"df9212b5fe2bce047e62f3739464c0afa5dd80d1511f110b06d8f00cba5e73d0"}
+{"id":"4","title":"Implement embedder with batching","status":"todo","dependencies":["2"],"created_at":"2026-04-07T14:54:00.005896016Z","doc_hash":"1c9a09016e02df1e7066da6bdda0f0e229554c216271b9cf17f46fc488fd6306"}
+{"id":"5","title":"Set up vector store (local)","status":"todo","dependencies":["1"],"created_at":"2026-04-07T14:54:04.2669391Z","doc_hash":"5246ab88fa92314c8cf76f257cd0c61dcdb2e6e8bc570d62cc6e3968e7975c77"}
+{"id":"6","title":"Implement vector store ingestion","status":"todo","dependencies":["5","4"],"created_at":"2026-04-07T14:54:15.774221314Z","doc_hash":"a26d5f54549ed4b10912aa92a34de3ff901e6a40f5a7be766de831d432a64499"}
+{"id":"7","title":"Implement RAG query interface","status":"todo","dependencies":["6"],"created_at":"2026-04-07T14:54:24.069204579Z","doc_hash":"2ca525f742a57fb36c2a644cf7f7788297ffff16c683496d45df1bbe6808bef4"}
+{"id":"8","title":"Wire together into a CLI or service entry point","status":"todo","dependencies":["7","6"],"created_at":"2026-04-07T14:54:30.92185353Z","doc_hash":"9035f41e2e3f21992dcf98818c779eefeebf8e28e5dd118f8c16c62621fa1a5e"}
+{"id":"9","title":"Add incremental update support","status":"todo","dependencies":["8"],"created_at":"2026-04-07T14:54:39.683428216Z","doc_hash":"8460e5f031ef3c65d6a9177fee14a2946538c4ac032bc1a9fb770da5e78da17a"}
+{"id":"10","title":"Add deduplication logic","status":"todo","dependencies":["8"],"created_at":"2026-04-07T14:54:52.798147707Z","doc_hash":"6fb5fb54da0cf835cc651de70588f2fe9084731b1c3b9be1cdec2e8dacc52bfe"}
