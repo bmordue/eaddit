@@ -1,0 +1,89 @@
+name: Create Task Issues
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  create-issues:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create GitHub issues from tasks
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          create_issue_if_not_exists() {
+            local title="$1"
+            local body="$2"
+            if gh issue list --repo bmordue/eaddit --state open --search "$title" --json title --jq '.[].title' | grep -qF "$title"; then
+              echo "Issue already exists: $title"
+            else
+              gh issue create --repo bmordue/eaddit \
+                --title "$title" \
+                --body "$body"
+              echo "Created issue: $title"
+            fi
+          }
+
+          create_issue_if_not_exists \
+            "Set up reproducible dev environment" \
+            "Reproducible development environment covering the data collection, embedding, and vector store client dependencies. Vector store should be runnable locally for development and testing."
+
+          create_issue_if_not_exists \
+            "Implement Reddit data collector" \
+            "Connect to the Reddit API to collect posts and comments from target subreddits. Fields to collect per post: identifier, title, body, score, URL, timestamp, subreddit, author. Fields to collect per comment: identifier, body, score, timestamp, author, parent identifier, thread depth. Filter by score threshold to avoid ingesting low-quality content.
+
+Dependencies: Set up reproducible dev environment"
+
+          create_issue_if_not_exists \
+            "Implement chunker with thread-aware comment handling" \
+            "Posts: treat title and body together as a single chunk. Comments: thread-aware chunking — prepend parent context to each comment so chunks are self-contained. Target a consistent chunk size (in tokens) with a small overlap to preserve context across chunk boundaries. Full thread context embedded per chunk vs flat comments decision needed.
+
+Dependencies: Implement Reddit data collector"
+
+          create_issue_if_not_exists \
+            "Implement embedder with batching" \
+            "Choose between hosted API (easier) vs local model (private, no cost per call). Batch documents for embedding to maximise throughput.
+
+Dependencies: Implement Reddit data collector"
+
+          create_issue_if_not_exists \
+            "Set up vector store (local)" \
+            "Choose between self-hosted dedicated vector database service, vector extension on existing relational database, or in-process vector store (simplest, good for prototyping). Choice should consider filtering capability, operational complexity, and scalability requirements.
+
+Dependencies: Set up reproducible dev environment"
+
+          create_issue_if_not_exists \
+            "Implement vector store ingestion" \
+            "Implement vector store ingestion pipeline. Each stored vector should carry metadata to support filtering at query time: post_id, comment_id, score, created_utc, author, url, parent_id, depth.
+
+Dependencies: Set up vector store (local), Implement embedder with batching"
+
+          create_issue_if_not_exists \
+            "Implement RAG query interface" \
+            "Implement RAG query flow: embed user query, search vector store for top-k similar chunks, optionally filter by metadata, optionally fetch ancestor chain for comments, pass retrieved chunks to LLM with original query.
+
+Dependencies: Implement vector store ingestion"
+
+          create_issue_if_not_exists \
+            "Wire together into a CLI or service entry point" \
+            "Wire all components together into a CLI or service entry point.
+
+Dependencies: Implement RAG query interface, Implement vector store ingestion"
+
+          create_issue_if_not_exists \
+            "Add incremental update support" \
+            "Support periodic polling for new posts vs one-shot ingest.
+
+Dependencies: Wire together into a CLI or service entry point"
+
+          create_issue_if_not_exists \
+            "Add deduplication logic" \
+            "Hash content before inserting to avoid re-ingesting unchanged items.
+
+Dependencies: Wire together into a CLI or service entry point"
