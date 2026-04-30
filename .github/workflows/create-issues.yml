@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - copilot/create-github-issues-for-tasks
-    paths:
-      - '.github/workflows/create-issues.yml'
   workflow_dispatch:
 
 permissions:
