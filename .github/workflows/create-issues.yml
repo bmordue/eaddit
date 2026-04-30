@@ -3,7 +3,7 @@ name: Create Task Issues
 on:
   push:
     branches:
-      - copilot/create-github-issues-for-tasks
+      - main
   workflow_dispatch:
 
 permissions:
