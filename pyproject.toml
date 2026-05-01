@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "eaddit"
+version = "0.1.0"
+description = "Ingest a subreddit into a vector database to power RAG queries."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+authors = [{ name = "bmordue" }]
+keywords = ["reddit", "rag", "vector-database", "embeddings"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+]
+# The core package intentionally has zero runtime dependencies so it works
+# in any Python 3.10+ environment. Backends that need third-party libraries
+# (PRAW for live Reddit, sentence-transformers for real embeddings) are
+# optional extras below.
+dependencies = []
+
+[project.optional-dependencies]
+reddit = ["praw>=7.7"]
+embeddings = ["sentence-transformers>=2.2"]
+test = ["pytest>=7.0"]
+dev = ["pytest>=7.0", "praw>=7.7", "sentence-transformers>=2.2"]
+
+[project.scripts]
+eaddit = "eaddit.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["eaddit*"]
+exclude = ["tests*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-ra"
