@@ -163,7 +163,7 @@ class PRAWCollector(Collector):  # pragma: no cover - exercised only with networ
                     url=str(getattr(submission, "url", "") or ""),
                     created_utc=int(getattr(submission, "created_utc", 0) or 0),
                     subreddit=subreddit,
-                    author=str(getattr(submission.author, "name", "") or ""),
+                    author=str(submission.author.name if submission.author else ""),
                 )
             )
             submission.comments.replace_more(limit=0)
@@ -180,8 +180,8 @@ class PRAWCollector(Collector):  # pragma: no cover - exercised only with networ
                         body=str(getattr(c, "body", "") or ""),
                         score=int(getattr(c, "score", 0) or 0),
                         created_utc=int(getattr(c, "created_utc", 0) or 0),
-                        author=str(getattr(c.author, "name", "") or ""),
-                        depth=int(getattr(c, "depth", 1) or 1) + 1,
+                        author=str(c.author.name if c.author else ""),
+                        depth=int(getattr(c, "depth", 0)) + 1,
                     )
                 )
         return _filter(posts, min_score), _filter(comments, min_score)
