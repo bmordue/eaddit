@@ -17,8 +17,10 @@ that satisfies the same interface.
 
 from __future__ import annotations
 
+import heapq
 import json
 import math
+import operator
 import os
 from pathlib import Path
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
@@ -44,6 +46,7 @@ class InMemoryVectorStore:
         self._ids: List[str] = []
         self._chunks: Dict[str, Chunk] = {}
         self._vectors: Dict[str, List[float]] = {}
+        self._norms: Dict[str, float] = {}
 
     # ------------------------------------------------------------------ #
     # Properties / inspection
@@ -79,13 +82,16 @@ class InMemoryVectorStore:
             if chunk.id not in self._chunks:
                 self._ids.append(chunk.id)
             self._chunks[chunk.id] = chunk
-            self._vectors[chunk.id] = list(map(float, vec))
+            v_list = list(map(float, vec))
+            self._vectors[chunk.id] = v_list
+            self._norms[chunk.id] = math.sqrt(sum(x * x for x in v_list)) or 1.0
 
     def delete(self, chunk_id: str) -> bool:
         if chunk_id not in self._chunks:
             return False
         self._chunks.pop(chunk_id, None)
         self._vectors.pop(chunk_id, None)
+        self._norms.pop(chunk_id, None)
         try:
             self._ids.remove(chunk_id)
         except ValueError:  # pragma: no cover - defensive
@@ -115,15 +121,14 @@ class InMemoryVectorStore:
             if metadata_filter is not None and not metadata_filter(chunk.metadata):
                 continue
             vec = self._vectors[cid]
-            v_norm = math.sqrt(sum(x * x for x in vec)) or 1.0
-            dot = 0.0
-            for a, b in zip(query_vector, vec):
-                dot += a * b
+            v_norm = self._norms[cid]
+            dot = sum(map(operator.mul, query_vector, vec))
             scored.append((dot / (q_norm * v_norm), cid))
-        scored.sort(key=lambda t: t[0], reverse=True)
+
+        top = heapq.nlargest(top_k, scored, key=lambda t: t[0])
         return [
             RetrievalResult(chunk=self._chunks[cid], score=float(s))
-            for s, cid in scored[:top_k]
+            for s, cid in top
         ]
 
     # ------------------------------------------------------------------ #
