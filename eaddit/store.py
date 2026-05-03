@@ -45,8 +45,9 @@ class InMemoryVectorStore:
         self._dimension = dimension
         self._ids: List[str] = []
         self._chunks: Dict[str, Chunk] = {}
-        self._vectors: Dict[str, List[float]] = {}
-        self._norms: Dict[str, float] = {}
+        self._vectors: List[List[float]] = []
+        self._metadata: List[Dict[str, Any]] = []
+        self._id_to_idx: Dict[str, int] = {}
 
     # ------------------------------------------------------------------ #
     # Properties / inspection
@@ -62,7 +63,7 @@ class InMemoryVectorStore:
         return chunk_id in self._chunks
 
     def all_chunks(self) -> List[Chunk]:
-        return [self._chunks[i] for i in self._ids]
+        return [self._chunks[cid] for cid in self._ids]
 
     def get(self, chunk_id: str) -> Optional[Chunk]:
         return self._chunks.get(chunk_id)
@@ -79,23 +80,40 @@ class InMemoryVectorStore:
                     f"vector for chunk {chunk.id!r} has dim {len(vec)}, "
                     f"expected {self._dimension}"
                 )
-            if chunk.id not in self._chunks:
+            v_list = [float(x) for x in vec]
+            norm = math.sqrt(sum(x * x for x in v_list))
+            if norm > 0:
+                v_list = [v / norm for v in v_list]
+
+            if chunk.id in self._chunks:
+                # Update existing ($O(1)$ lookup via _id_to_idx)
+                idx = self._id_to_idx[chunk.id]
+                self._chunks[chunk.id] = chunk
+                self._vectors[idx] = v_list
+                self._metadata[idx] = chunk.metadata
+            else:
+                # Add new
+                idx = len(self._ids)
                 self._ids.append(chunk.id)
-            self._chunks[chunk.id] = chunk
-            v_list = list(map(float, vec))
-            self._vectors[chunk.id] = v_list
-            self._norms[chunk.id] = math.sqrt(sum(x * x for x in v_list)) or 1.0
+                self._chunks[chunk.id] = chunk
+                self._vectors.append(v_list)
+                self._metadata.append(chunk.metadata)
+                self._id_to_idx[chunk.id] = idx
 
     def delete(self, chunk_id: str) -> bool:
         if chunk_id not in self._chunks:
             return False
-        self._chunks.pop(chunk_id, None)
-        self._vectors.pop(chunk_id, None)
-        self._norms.pop(chunk_id, None)
-        try:
-            self._ids.remove(chunk_id)
-        except ValueError:  # pragma: no cover - defensive
-            pass
+        idx = self._id_to_idx.pop(chunk_id)
+        self._ids.pop(idx)
+        self._chunks.pop(chunk_id)
+        self._vectors.pop(idx)
+        self._metadata.pop(idx)
+
+        # Update indices for all items that shifted.
+        # This makes delete O(N), but we prioritize search and add.
+        for i in range(idx, len(self._ids)):
+            self._id_to_idx[self._ids[i]] = i
+
         return True
 
     # ------------------------------------------------------------------ #
@@ -114,16 +132,22 @@ class InMemoryVectorStore:
         if top_k <= 0:
             return []
 
+        # Normalize query vector.
         q_norm = math.sqrt(sum(x * x for x in query_vector)) or 1.0
-        scored: List[Tuple[float, str]] = []
-        for cid in self._ids:
-            chunk = self._chunks[cid]
-            if metadata_filter is not None and not metadata_filter(chunk.metadata):
-                continue
-            vec = self._vectors[cid]
-            v_norm = self._norms[cid]
-            dot = sum(map(operator.mul, query_vector, vec))
-            scored.append((dot / (q_norm * v_norm), cid))
+        q_vec = [float(x) / q_norm for x in query_vector]
+
+        if metadata_filter is None:
+            # zip() is slightly faster than indexing in a loop.
+            scored = [
+                (sum(map(operator.mul, q_vec, v)), cid)
+                for v, cid in zip(self._vectors, self._ids)
+            ]
+        else:
+            scored = [
+                (sum(map(operator.mul, q_vec, v)), cid)
+                for v, m, cid in zip(self._vectors, self._metadata, self._ids)
+                if metadata_filter(m)
+            ]
 
         top = heapq.nlargest(top_k, scored, key=lambda t: t[0])
         return [
@@ -140,9 +164,9 @@ class InMemoryVectorStore:
             "items": [
                 {
                     "chunk": self._chunks[cid].to_dict(),
-                    "vector": self._vectors[cid],
+                    "vector": vec,
                 }
-                for cid in self._ids
+                for cid, vec in zip(self._ids, self._vectors)
             ],
         }
         path = Path(path)
@@ -163,6 +187,8 @@ class InMemoryVectorStore:
         for item in payload.get("items", []):
             chunks.append(Chunk.from_dict(item["chunk"]))
             vectors.append([float(x) for x in item["vector"]])
+
+        # Use a single add() call to build the store.
         if chunks:
             store.add(chunks, vectors)
         return store
