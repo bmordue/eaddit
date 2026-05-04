@@ -81,7 +81,7 @@ class InMemoryVectorStore:
                     f"expected {self._dimension}"
                 )
             v_list = [float(x) for x in vec]
-            norm = math.sqrt(sum(x * x for x in v_list))
+            norm = math.hypot(*v_list)
             if norm > 0:
                 v_list = [v / norm for v in v_list]
 
@@ -133,18 +133,21 @@ class InMemoryVectorStore:
             return []
 
         # Normalize query vector.
-        q_norm = math.sqrt(sum(x * x for x in query_vector)) or 1.0
+        q_norm = math.hypot(*query_vector) or 1.0
         q_vec = [float(x) / q_norm for x in query_vector]
 
         if metadata_filter is None:
-            # zip() is slightly faster than indexing in a loop.
+            # For L2-normalized vectors, dot product relates to Euclidean distance:
+            # ||a - b||^2 = ||a||^2 + ||b||^2 - 2(a.b) = 2 - 2(a.b)
+            # => a.b = 1 - ||a - b||^2 / 2
+            # math.dist() is implemented in C and is much faster than manual sum-of-products.
             scored = [
-                (sum(map(operator.mul, q_vec, v)), cid)
+                (1.0 - math.dist(q_vec, v) ** 2 / 2.0, cid)
                 for v, cid in zip(self._vectors, self._ids)
             ]
         else:
             scored = [
-                (sum(map(operator.mul, q_vec, v)), cid)
+                (1.0 - math.dist(q_vec, v) ** 2 / 2.0, cid)
                 for v, m, cid in zip(self._vectors, self._metadata, self._ids)
                 if metadata_filter(m)
             ]

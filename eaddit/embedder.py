@@ -89,7 +89,7 @@ class HashingEmbedder(Embedder):
             # roughly zero-mean for unrelated tokens.
             sign = 1.0 if (digest[4] & 1) == 0 else -1.0
             vec[bucket] += sign
-        norm = math.sqrt(sum(v * v for v in vec))
+        norm = math.hypot(*vec)
         if norm > 0.0:
             vec = [v / norm for v in vec]
         return vec
