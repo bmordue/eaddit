@@ -16,7 +16,7 @@ import hashlib
 import math
 import re
 from abc import ABC, abstractmethod
-from typing import Iterable, List, Sequence
+from typing import Dict, Iterable, List, Sequence
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -82,13 +82,23 @@ class HashingEmbedder(Embedder):
         vec = [0.0] * self._dim
         if not text:
             return vec
+
+        # Performance optimization: count tokens first to avoid redundant
+        # hashing of duplicate tokens within the same text. For long texts with
+        # repetitive vocabulary, this can significantly reduce the number of
+        # blake2b hashing operations.
+        counts: Dict[str, int] = {}
         for token in _WORD_RE.findall(text.lower()):
+            counts[token] = counts.get(token, 0) + 1
+
+        for token, count in counts.items():
             digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
             bucket = int.from_bytes(digest[:4], "big") % self._dim
             # The 5th byte's lowest bit decides the sign — keeps the embedding
             # roughly zero-mean for unrelated tokens.
             sign = 1.0 if (digest[4] & 1) == 0 else -1.0
-            vec[bucket] += sign
+            vec[bucket] += sign * count
+
         norm = math.hypot(*vec)
         if norm > 0.0:
             vec = [v / norm for v in vec]
