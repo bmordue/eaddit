@@ -18,12 +18,12 @@ that satisfies the same interface.
 from __future__ import annotations
 
 import heapq
+import itertools
 import json
 import math
-import operator
 import os
 from pathlib import Path
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Optional, Sequence
 
 from .models import Chunk, RetrievalResult
 
@@ -137,25 +137,29 @@ class InMemoryVectorStore:
         q_vec = [float(x) / q_norm for x in query_vector]
 
         if metadata_filter is None:
-            # For L2-normalized vectors, dot product relates to Euclidean distance:
-            # ||a - b||^2 = ||a||^2 + ||b||^2 - 2(a.b) = 2 - 2(a.b)
-            # => a.b = 1 - ||a - b||^2 / 2
-            # math.dist() is implemented in C and is much faster than manual sum-of-products.
-            scored = [
-                (1.0 - math.dist(q_vec, v) ** 2 / 2.0, cid)
-                for v, cid in zip(self._vectors, self._ids)
-            ]
+            # Performance optimization: use map() with math.dist and itertools.repeat
+            # to stay in C-level loops as much as possible.
+            dists = map(math.dist, itertools.repeat(q_vec), self._vectors)
+            # Find the k smallest distances (equivalent to k largest similarities).
+            # Tie-breaking now uses chunk IDs (cid).
+            top_k_dists = heapq.nsmallest(top_k, zip(dists, self._ids))
         else:
-            scored = [
-                (1.0 - math.dist(q_vec, v) ** 2 / 2.0, cid)
-                for v, m, cid in zip(self._vectors, self._metadata, self._ids)
+            # For filtered search, use a generator expression to avoid full list
+            # materialization while still leveraging math.dist.
+            items = zip(self._vectors, self._ids, self._metadata)
+            dists_gen = (
+                (math.dist(q_vec, v), cid)
+                for v, cid, m in items
                 if metadata_filter(m)
-            ]
+            )
+            top_k_dists = heapq.nsmallest(top_k, dists_gen)
 
-        top = heapq.nlargest(top_k, scored, key=lambda t: t[0])
         return [
-            RetrievalResult(chunk=self._chunks[cid], score=float(s))
-            for s, cid in top
+            RetrievalResult(
+                chunk=self._chunks[cid],
+                score=float(1.0 - d * d / 2.0),
+            )
+            for d, cid in top_k_dists
         ]
 
     # ------------------------------------------------------------------ #

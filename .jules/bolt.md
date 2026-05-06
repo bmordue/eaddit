@@ -13,3 +13,7 @@
 ## 2026-05-05 - [Instance-level caching for HashingEmbedder]
 **Learning:** While intra-document token deduplication helps, a multi-document instance-level cache for token hashes (mapping tokens to bucket and sign) provides a massive speedup (up to 5x in realistic scenarios) in RAG pipelines where multiple chunks share a common vocabulary. This avoids repeated calls to expensive C-level hashing functions like `blake2b`.
 **Action:** Implement instance-level caches for deterministic, per-token transformations in text processing pipelines to leverage vocabulary reuse.
+
+## 2026-05-06 - [Lazy similarity scoring for vector search]
+**Learning:** In pure Python vector search, moving the conversion from Euclidean distance to cosine similarity (i.e., `1.0 - d*d/2.0`) outside the main (N)$ loop and only applying it to the top-K results provides a measurable speedup. Combining this with `map(math.dist, ...)` and `itertools.repeat` allows the distance calculation loop to run almost entirely in C, further reducing overhead.
+**Action:** Use `heapq.nsmallest` on raw distances and defer final score calculations for any high-performance search implementation.
