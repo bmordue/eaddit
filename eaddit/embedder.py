@@ -16,7 +16,7 @@ import hashlib
 import math
 import re
 from abc import ABC, abstractmethod
-from typing import Dict, Iterable, List, Sequence
+from typing import Dict, Iterable, List, Sequence, Tuple
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -59,6 +59,7 @@ class HashingEmbedder(Embedder):
             raise ValueError("batch_size must be positive")
         self._dim = dim
         self._batch_size = batch_size
+        self._hash_cache: Dict[str, Tuple[int, float]] = {}
 
     @property
     def dimension(self) -> int:
@@ -92,11 +93,17 @@ class HashingEmbedder(Embedder):
             counts[token] = counts.get(token, 0) + 1
 
         for token, count in counts.items():
-            digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
-            bucket = int.from_bytes(digest[:4], "big") % self._dim
-            # The 5th byte's lowest bit decides the sign — keeps the embedding
-            # roughly zero-mean for unrelated tokens.
-            sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+            # Performance optimization: cache hashing results across documents.
+            # For large datasets, vocabulary is often reused.
+            if token in self._hash_cache:
+                bucket, sign = self._hash_cache[token]
+            else:
+                digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
+                bucket = int.from_bytes(digest[:4], "big") % self._dim
+                # The 5th byte's lowest bit decides the sign — keeps the embedding
+                # roughly zero-mean for unrelated tokens.
+                sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+                self._hash_cache[token] = (bucket, sign)
             vec[bucket] += sign * count
 
         norm = math.hypot(*vec)

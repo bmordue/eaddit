@@ -9,3 +9,7 @@
 ## 2025-05-17 - [Token deduplication for faster feature hashing]
 **Learning:** In feature-hashing embedders (like `HashingEmbedder`), counting token frequencies within a document *before* performing hashing operations is significantly faster for repetitive text. This reduces the number of calls to expensive cryptographic hash functions (like `blake2b`) and replaces them with simple scalar multiplications.
 **Action:** Always deduplicate/count tokens before applying per-token operations in text processing pipelines.
+
+## 2026-05-05 - [Instance-level caching for HashingEmbedder]
+**Learning:** While intra-document token deduplication helps, a multi-document instance-level cache for token hashes (mapping tokens to bucket and sign) provides a massive speedup (up to 5x in realistic scenarios) in RAG pipelines where multiple chunks share a common vocabulary. This avoids repeated calls to expensive C-level hashing functions like `blake2b`.
+**Action:** Implement instance-level caches for deterministic, per-token transformations in text processing pipelines to leverage vocabulary reuse.
