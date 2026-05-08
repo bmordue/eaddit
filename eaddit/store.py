@@ -22,6 +22,7 @@ import itertools
 import json
 import math
 import os
+import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
@@ -178,11 +179,18 @@ class InMemoryVectorStore:
         }
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        # Atomic-ish write to avoid leaving a corrupt file on crash.
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(payload, fh)
-        os.replace(tmp, path)
+        # Secure atomic write to avoid symlink attacks and leaving corrupt files.
+        with tempfile.NamedTemporaryFile(
+            "w", dir=path.parent, suffix=".tmp", delete=False, encoding="utf-8"
+        ) as tf:
+            json.dump(payload, tf)
+            tmp_name = tf.name
+        try:
+            os.replace(tmp_name, path)
+        except Exception:
+            if os.path.exists(tmp_name):
+                os.unlink(tmp_name)
+            raise
 
     @classmethod
     def load(cls, path: str | os.PathLike[str]) -> "InMemoryVectorStore":

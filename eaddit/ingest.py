@@ -16,9 +16,10 @@ from __future__ import annotations
 
 import json
 import os
+import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 
 from .chunker import Chunker
 from .collector import Collector
@@ -153,7 +154,15 @@ class IngestionPipeline:
             return
         path = Path(self.state_path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        tmp = path.with_suffix(path.suffix + ".tmp")
-        with open(tmp, "w", encoding="utf-8") as fh:
-            json.dump(self._state, fh, indent=2, sort_keys=True)
-        os.replace(tmp, path)
+        # Secure atomic write to avoid symlink attacks and leaving corrupt files.
+        with tempfile.NamedTemporaryFile(
+            "w", dir=path.parent, suffix=".tmp", delete=False, encoding="utf-8"
+        ) as tf:
+            json.dump(self._state, tf, indent=2, sort_keys=True)
+            tmp_name = tf.name
+        try:
+            os.replace(tmp_name, path)
+        except Exception:
+            if os.path.exists(tmp_name):
+                os.unlink(tmp_name)
+            raise
