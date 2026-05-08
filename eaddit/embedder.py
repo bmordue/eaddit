@@ -160,13 +160,17 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
 
     if len(a) != len(b):
         raise ValueError("vectors must have the same dimension")
-    dot = 0.0
-    na = 0.0
-    nb = 0.0
-    for x, y in zip(a, b):
-        dot += x * y
-        na += x * x
-        nb += y * y
+
+    # Performance optimization: use math.hypot and math.dist for cosine similarity.
+    # In pure Python, these C-level implementations are significantly faster than
+    # manual loops or zip/map/sum combinations.
+    # The identity: 2 * <a, b> = ||a||^2 + ||b||^2 - ||a - b||^2
+    # Cosine(a, b) = <a, b> / (||a|| * ||b||)
+    #              = (||a||/||b|| + ||b||/||a|| - ||a - b||^2 / (||a|| * ||b||)) / 2
+    na = math.hypot(*a)
+    nb = math.hypot(*b)
     if na == 0.0 or nb == 0.0:
         return 0.0
-    return dot / math.sqrt(na * nb)
+
+    d = math.dist(a, b)
+    return (na / nb + nb / na - (d * d) / (na * nb)) / 2.0
