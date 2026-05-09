@@ -1,19 +1,3 @@
-## 2025-05-15 - [Optimize vector search in InMemoryVectorStore]
-**Learning:** In pure Python (without NumPy), `sum(map(operator.mul, v1, v2))` is significantly faster than a manual `for` loop with `zip` for dot product calculations. Additionally, caching vector norms and using `heapq.nlargest` instead of sorting the entire list of scores provides a substantial speedup for vector search operations, especially as the number of vectors grows.
-**Action:** Use pre-calculated norms, `operator.mul`, and `heapq` for in-process vector search implementations in similar Python-based RAG applications.
-
-## 2025-05-16 - [Extreme speedup for L2-normalized vector search]
-**Learning:** For L2-normalized vectors, cosine similarity (dot product) can be computed much faster using `1 - math.dist(a, b)**2 / 2`. `math.dist` and `math.hypot` are implemented in C and provide a ~3x speedup over `sum(map(operator.mul, a, b))` and a ~6x speedup over manual generator expressions in pure Python.
-**Action:** Always prefer `math.dist` for similarity searches and `math.hypot` for normalization when working with pure Python and normalized vectors.
-
-## 2025-05-17 - [Token deduplication for faster feature hashing]
-**Learning:** In feature-hashing embedders (like `HashingEmbedder`), counting token frequencies within a document *before* performing hashing operations is significantly faster for repetitive text. This reduces the number of calls to expensive cryptographic hash functions (like `blake2b`) and replaces them with simple scalar multiplications.
-**Action:** Always deduplicate/count tokens before applying per-token operations in text processing pipelines.
-
-## 2026-05-05 - [Instance-level caching for HashingEmbedder]
-**Learning:** While intra-document token deduplication helps, a multi-document instance-level cache for token hashes (mapping tokens to bucket and sign) provides a massive speedup (up to 5x in realistic scenarios) in RAG pipelines where multiple chunks share a common vocabulary. This avoids repeated calls to expensive C-level hashing functions like `blake2b`.
-**Action:** Implement instance-level caches for deterministic, per-token transformations in text processing pipelines to leverage vocabulary reuse.
-
-## 2026-05-06 - [Lazy similarity scoring for vector search]
-**Learning:** In pure Python vector search, moving the conversion from Euclidean distance to cosine similarity (i.e., `1.0 - d*d/2.0`) outside the main (N)$ loop and only applying it to the top-K results provides a measurable speedup. Combining this with `map(math.dist, ...)` and `itertools.repeat` allows the distance calculation loop to run almost entirely in C, further reducing overhead.
-**Action:** Use `heapq.nsmallest` on raw distances and defer final score calculations for any high-performance search implementation.
+## 2026-05-07 - [Type safety in vector store optimizations]
+**Learning:** In Python-based vector operations, while `list(vec)` is faster than list comprehensions, it can bypass critical type casting (like `float(x)`) required for JSON serialization or compatibility with the `math` module when the input comes from libraries like NumPy or PyTorch. Using `list(map(float, vec))` provides a significant speedup over list comprehensions while maintaining type safety.
+**Action:** Always ensure explicit type casting to standard Python primitives when optimizing data structures that will be serialized or processed by the standard library.

@@ -80,9 +80,9 @@ class InMemoryVectorStore:
                     f"vector for chunk {chunk.id!r} has dim {len(vec)}, "
                     f"expected {self._dimension}"
                 )
-            v_list = [float(x) for x in vec]
+            v_list = list(map(float, vec))
             norm = math.hypot(*v_list)
-            if norm > 0:
+            if norm > 0 and not math.isclose(norm, 1.0, rel_tol=1e-9):
                 v_list = [v / norm for v in v_list]
 
             if chunk.id in self._chunks:
@@ -134,7 +134,10 @@ class InMemoryVectorStore:
 
         # Normalize query vector.
         q_norm = math.hypot(*query_vector) or 1.0
-        q_vec = [float(x) / q_norm for x in query_vector]
+        if math.isclose(q_norm, 1.0, rel_tol=1e-9):
+            q_vec = list(map(float, query_vector))
+        else:
+            q_vec = [float(x) / q_norm for x in query_vector]
 
         if metadata_filter is None:
             # Performance optimization: use map() with math.dist and itertools.repeat
@@ -193,7 +196,8 @@ class InMemoryVectorStore:
         vectors: List[List[float]] = []
         for item in payload.get("items", []):
             chunks.append(Chunk.from_dict(item["chunk"]))
-            vectors.append([float(x) for x in item["vector"]])
+            # Type cast to float for JSON/math compatibility
+            vectors.append(list(map(float, item["vector"])))
 
         # Use a single add() call to build the store.
         if chunks:
