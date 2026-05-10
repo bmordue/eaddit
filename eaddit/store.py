@@ -84,7 +84,10 @@ class InMemoryVectorStore:
             v_list = list(map(float, vec))
             norm = math.hypot(*v_list)
             if norm > 0 and not math.isclose(norm, 1.0, rel_tol=1e-9):
-                v_list = [v / norm for v in v_list]
+                # Performance optimization: multiply by reciprocal instead of repeated
+                # division in the loop.
+                inv_norm = 1.0 / norm
+                v_list = [v * inv_norm for v in v_list]
 
             if chunk.id in self._chunks:
                 # Update existing ($O(1)$ lookup via _id_to_idx)
@@ -138,7 +141,10 @@ class InMemoryVectorStore:
         if math.isclose(q_norm, 1.0, rel_tol=1e-9):
             q_vec = list(map(float, query_vector))
         else:
-            q_vec = [float(x) / q_norm for x in query_vector]
+            # Performance optimization: multiply by reciprocal instead of repeated
+            # division in the loop.
+            inv_norm = 1.0 / q_norm
+            q_vec = [float(x) * inv_norm for x in query_vector]
 
         if metadata_filter is None:
             # Performance optimization: use map() with math.dist and itertools.repeat
