@@ -12,6 +12,7 @@ extra and use :class:`SentenceTransformerEmbedder`.
 
 from __future__ import annotations
 
+import collections
 import hashlib
 import math
 import re
@@ -84,26 +85,25 @@ class HashingEmbedder(Embedder):
         if not text:
             return vec
 
-        # Performance optimization: count tokens first to avoid redundant
-        # hashing of duplicate tokens within the same text. For long texts with
-        # repetitive vocabulary, this can significantly reduce the number of
-        # blake2b hashing operations.
-        counts: Dict[str, int] = {}
-        for token in _WORD_RE.findall(text.lower()):
-            counts[token] = counts.get(token, 0) + 1
+        # Performance optimization: use collections.Counter for faster token
+        # counting. re.findall() + .lower() on the whole text is faster than
+        # per-token operations in pure Python.
+        counts = collections.Counter(_WORD_RE.findall(text.lower()))
 
+        # Performance optimization: use local variable for cache lookup speed
+        # and avoid double lookups with dict.get().
+        cache = self._hash_cache
         for token, count in counts.items():
-            # Performance optimization: cache hashing results across documents.
-            # For large datasets, vocabulary is often reused.
-            if token in self._hash_cache:
-                bucket, sign = self._hash_cache[token]
+            res = cache.get(token)
+            if res is not None:
+                bucket, sign = res
             else:
                 digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
                 bucket = int.from_bytes(digest[:4], "big") % self._dim
                 # The 5th byte's lowest bit decides the sign — keeps the embedding
                 # roughly zero-mean for unrelated tokens.
                 sign = 1.0 if (digest[4] & 1) == 0 else -1.0
-                self._hash_cache[token] = (bucket, sign)
+                cache[token] = (bucket, sign)
             vec[bucket] += sign * count
 
         norm = math.hypot(*vec)
