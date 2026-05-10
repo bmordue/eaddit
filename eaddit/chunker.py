@@ -20,6 +20,10 @@ from typing import Dict, Iterable, List, Optional, Sequence
 from .models import Chunk, Comment, Post, comment_metadata, post_metadata
 
 
+# Security: Limit the maximum length of text allowed for chunking to prevent DoS.
+MAX_TEXT_LENGTH = 100_000
+
+
 @dataclass
 class Chunker:
     """Turn :class:`Post` and :class:`Comment` objects into :class:`Chunk` objects.
@@ -131,6 +135,10 @@ class Chunker:
         text: str,
         metadata: Dict,
     ) -> List[Chunk]:
+        if len(text) > MAX_TEXT_LENGTH:
+            raise ValueError(
+                f"Input text too long ({len(text)} > {MAX_TEXT_LENGTH} chars)"
+            )
         text = text.strip()
         if not text:
             return []
