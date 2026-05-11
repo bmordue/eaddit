@@ -189,17 +189,20 @@ class InMemoryVectorStore:
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
         # Secure atomic write to avoid symlink attacks and leaving corrupt files.
-        with tempfile.NamedTemporaryFile(
-            "w", dir=path.parent, suffix=".tmp", delete=False, encoding="utf-8"
-        ) as tf:
-            json.dump(payload, tf)
-            tmp_name = tf.name
+        tmp_name = None
         try:
+            with tempfile.NamedTemporaryFile(
+                "w", dir=path.parent, suffix=".tmp", delete=False, encoding="utf-8"
+            ) as tf:
+                tmp_name = tf.name
+                json.dump(payload, tf)
             os.replace(tmp_name, path)
-        except Exception:
-            if os.path.exists(tmp_name):
-                os.unlink(tmp_name)
-            raise
+        finally:
+            if tmp_name and os.path.exists(tmp_name):
+                try:
+                    os.unlink(tmp_name)
+                except OSError:
+                    pass
 
     @classmethod
     def load(cls, path: str | os.PathLike[str]) -> "InMemoryVectorStore":

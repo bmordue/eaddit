@@ -125,8 +125,8 @@ class PRAWCollector(Collector):  # pragma: no cover - exercised only with networ
         self,
         reddit: Any = None,
         *,
-        client_id: str = "",
-        client_secret: str = "",
+        client_id: Optional[str] = None,
+        client_secret: Optional[str] = None,
         user_agent: str = "eaddit/0.1",
     ) -> None:
         if reddit is None:
@@ -137,6 +137,10 @@ class PRAWCollector(Collector):  # pragma: no cover - exercised only with networ
                     "praw is required for PRAWCollector; install with the "
                     "'reddit' extra: pip install eaddit[reddit]"
                 ) from exc
+
+            # Note: client_id and client_secret are allowed to be None; PRAW
+            # will fall back to environment variables or local praw.ini.
+            # This is more secure than requiring them as CLI arguments.
             reddit = praw.Reddit(
                 client_id=client_id,
                 client_secret=client_secret,
