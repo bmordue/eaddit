@@ -108,7 +108,10 @@ class HashingEmbedder(Embedder):
 
         norm = math.hypot(*vec)
         if norm > 0.0:
-            vec = [v / norm for v in vec]
+            # Performance optimization: multiply by reciprocal instead of repeated
+            # division in the loop.
+            inv_norm = 1.0 / norm
+            vec = [v * inv_norm for v in vec]
         return vec
 
 
@@ -166,11 +169,13 @@ def cosine_similarity(a: Sequence[float], b: Sequence[float]) -> float:
     # manual loops or zip/map/sum combinations.
     # The identity: 2 * <a, b> = ||a||^2 + ||b||^2 - ||a - b||^2
     # Cosine(a, b) = <a, b> / (||a|| * ||b||)
-    #              = (||a||/||b|| + ||b||/||a|| - ||a - b||^2 / (||a|| * ||b||)) / 2
+    #              = (||a||^2 + ||b||^2 - ||a - b||^2) / (2 * ||a|| * ||b||)
     na = math.hypot(*a)
     nb = math.hypot(*b)
     if na == 0.0 or nb == 0.0:
         return 0.0
 
     d = math.dist(a, b)
-    return (na / nb + nb / na - (d * d) / (na * nb)) / 2.0
+    # Performance optimization: use an algebraic form that minimizes the number
+    # of division operations in the final calculation.
+    return (na * na + nb * nb - d * d) / (2.0 * na * nb)
