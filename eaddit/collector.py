@@ -15,6 +15,7 @@ filtered by a minimum-score threshold.
 
 from __future__ import annotations
 
+import itertools
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
@@ -78,13 +79,24 @@ class JSONFixtureCollector(Collector):
         raw_posts: Iterable[Mapping[str, Any]] = bucket.get("posts", [])
         raw_comments: Iterable[Mapping[str, Any]] = bucket.get("comments", [])
 
-        posts = [_post_from_dict(p) for p in raw_posts][:limit]
-        post_ids = {p.id for p in posts}
-        comments = [_comment_from_dict(c) for c in raw_comments]
-        # Only keep comments belonging to the posts we are returning.
-        comments = [c for c in comments if c.post_id in post_ids]
+        # Performance optimization: use islice to avoid full materialization of posts
+        # and pre-filter comments by post_id and min_score to avoid unnecessary
+        # object creation and multiple passes.
+        posts = [_post_from_dict(p) for p in itertools.islice(raw_posts, limit)]
+        if not posts:
+            return [], []
 
-        return _filter(posts, min_score), _filter(comments, min_score)
+        post_ids = {p.id for p in posts}
+        filtered_posts = [p for p in posts if p.score >= min_score]
+
+        filtered_comments = []
+        for c in raw_comments:
+            if c.get("post_id") in post_ids:
+                score = int(c.get("score", 0))
+                if score >= min_score:
+                    filtered_comments.append(_comment_from_dict(c))
+
+        return filtered_posts, filtered_comments
 
 
 def _post_from_dict(d: Mapping[str, Any]) -> Post:
