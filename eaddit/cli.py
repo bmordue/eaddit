@@ -29,6 +29,10 @@ from .rag import RAGQueryEngine, build_prompt
 from .store import InMemoryVectorStore
 
 
+# Security: Limit the maximum length of query text to prevent DoS.
+MAX_QUERY_LENGTH = 10_000
+
+
 # ---------------------------------------------------------------------- #
 # Helpers
 # ---------------------------------------------------------------------- #
@@ -115,6 +119,10 @@ def cmd_ingest(args: argparse.Namespace) -> int:
 
 
 def cmd_query(args: argparse.Namespace) -> int:
+    if len(args.text) > MAX_QUERY_LENGTH:
+        raise SystemExit(
+            f"Query too long ({len(args.text)} > {MAX_QUERY_LENGTH} chars)"
+        )
     embedder = _build_embedder(args.dim)
     store_path = Path(args.store)
     if not store_path.exists():
