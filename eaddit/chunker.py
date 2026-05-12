@@ -122,9 +122,13 @@ class Chunker:
         if ancestors:
             lines.append("Thread context:")
             for a in ancestors:
-                snippet = a.body.strip().replace("\n", " ")
-                if len(snippet) > 240:
-                    snippet = snippet[:237] + "..."
+                # Performance optimization: slice before replace() to avoid
+                # expensive string operations on very large comments.
+                stripped = a.body.strip()
+                if len(stripped) <= 240:
+                    snippet = stripped.replace("\n", " ")
+                else:
+                    snippet = stripped[:237].replace("\n", " ") + "..."
                 lines.append(f"- {a.author or 'unknown'}: {snippet}")
         return "\n".join(lines)
 
