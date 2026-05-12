@@ -18,7 +18,7 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import Any, Callable, Dict, Optional, Sequence
 
 from .chunker import Chunker
 from .collector import Collector, JSONFixtureCollector

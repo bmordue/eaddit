@@ -19,7 +19,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Any, Callable, Dict, List, Optional, Sequence
+from typing import List, Optional, Sequence
 
 # Security: Limit the maximum length of query text to prevent DoS.
 MAX_QUERY_LENGTH = 10_000
