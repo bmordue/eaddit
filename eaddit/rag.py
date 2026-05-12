@@ -23,6 +23,8 @@ from typing import List, Optional, Sequence
 
 # Security: Limit the maximum length of query text to prevent DoS.
 MAX_QUERY_LENGTH = 10_000
+MAX_TOP_K = 100
+MAX_ANCESTORS = 20
 
 from .embedder import Embedder
 from .models import Chunk, RetrievalResult
@@ -94,6 +96,12 @@ class RAGQueryEngine:
         if len(query) > MAX_QUERY_LENGTH:
             raise ValueError(
                 f"Query too long ({len(query)} > {MAX_QUERY_LENGTH} chars)"
+            )
+        if top_k > MAX_TOP_K:
+            raise ValueError(f"top_k too large ({top_k} > {MAX_TOP_K})")
+        if max_ancestors > MAX_ANCESTORS:
+            raise ValueError(
+                f"max_ancestors too large ({max_ancestors} > {MAX_ANCESTORS})"
             )
 
         q_vec = self.embedder.embed_one(query)
