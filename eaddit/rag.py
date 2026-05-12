@@ -21,6 +21,9 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
+# Security: Limit the maximum length of query text to prevent DoS.
+MAX_QUERY_LENGTH = 10_000
+
 from .embedder import Embedder
 from .models import Chunk, RetrievalResult
 from .store import InMemoryVectorStore, MetadataFilter
@@ -87,6 +90,11 @@ class RAGQueryEngine:
         lets the prompt builder include thread context even if only one
         comment in the thread was retrieved.
         """
+
+        if len(query) > MAX_QUERY_LENGTH:
+            raise ValueError(
+                f"Query too long ({len(query)} > {MAX_QUERY_LENGTH} chars)"
+            )
 
         q_vec = self.embedder.embed_one(query)
         results = self.store.search(q_vec, top_k=top_k, metadata_filter=metadata_filter)

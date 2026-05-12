@@ -24,12 +24,9 @@ from .chunker import Chunker
 from .collector import Collector, JSONFixtureCollector
 from .embedder import Embedder, HashingEmbedder
 from .ingest import IngestionPipeline
-from .rag import RAGQueryEngine, build_prompt
+from .models import Chunk
+from .rag import MAX_QUERY_LENGTH, RAGQueryEngine, build_prompt
 from .store import InMemoryVectorStore
-
-
-# Security: Limit the maximum length of query text to prevent DoS.
-MAX_QUERY_LENGTH = 10_000
 
 
 # ---------------------------------------------------------------------- #
@@ -61,8 +58,8 @@ def _build_collector(args: argparse.Namespace) -> Collector:
         from .collector import PRAWCollector
 
         return PRAWCollector(
-            client_id=args.client_id or "",
-            client_secret=args.client_secret or "",
+            client_id=args.client_id,
+            client_secret=args.client_secret,
             user_agent=args.user_agent or "eaddit/0.1",
         )
     raise SystemExit(f"unknown source: {args.source}")
