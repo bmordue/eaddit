@@ -43,3 +43,31 @@ def test_rag_engine_query_max_length_enforced():
     long_text = "a" * (MAX_QUERY_LENGTH + 1)
     with pytest.raises(ValueError, match="Query too long"):
         engine.retrieve(long_text)
+
+
+def test_rag_engine_max_top_k_enforced():
+    from eaddit.embedder import HashingEmbedder
+    from eaddit.rag import MAX_TOP_K
+    store = InMemoryVectorStore(dimension=256)
+    embedder = HashingEmbedder(dim=256)
+    engine = RAGQueryEngine(store=store, embedder=embedder)
+
+    with pytest.raises(ValueError, match="top_k too large"):
+        engine.retrieve("test", top_k=MAX_TOP_K + 1)
+
+
+def test_rag_engine_max_ancestors_enforced():
+    from eaddit.embedder import HashingEmbedder
+    from eaddit.rag import MAX_ANCESTORS
+    store = InMemoryVectorStore(dimension=256)
+    embedder = HashingEmbedder(dim=256)
+    engine = RAGQueryEngine(store=store, embedder=embedder)
+
+    with pytest.raises(ValueError, match="max_ancestors too large"):
+        engine.retrieve("test", max_ancestors=MAX_ANCESTORS + 1)
+
+
+def test_chunker_max_ancestors_enforced():
+    from eaddit.chunker import MAX_ANCESTORS
+    with pytest.raises(ValueError, match="max_ancestors too large"):
+        Chunker(max_ancestors=MAX_ANCESTORS + 1)

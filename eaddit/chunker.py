@@ -22,6 +22,7 @@ from .models import Chunk, Comment, Post, comment_metadata, post_metadata
 
 # Security: Limit the maximum length of text allowed for chunking to prevent DoS.
 MAX_TEXT_LENGTH = 100_000
+MAX_ANCESTORS = 20
 
 
 @dataclass
@@ -53,6 +54,10 @@ class Chunker:
             raise ValueError("chunk_size must be positive")
         if self.chunk_overlap < 0 or self.chunk_overlap >= self.chunk_size:
             raise ValueError("chunk_overlap must satisfy 0 <= overlap < chunk_size")
+        if self.max_ancestors > MAX_ANCESTORS:
+            raise ValueError(
+                f"max_ancestors too large ({self.max_ancestors} > {MAX_ANCESTORS})"
+            )
 
     # ------------------------------------------------------------------ #
     # Public API
