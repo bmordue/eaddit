@@ -17,7 +17,7 @@ import hashlib
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence
 
-from .models import Chunk, Comment, Post, comment_metadata, post_metadata
+from .models import Chunk, Comment, Post, comment_metadata, post_metadata, sanitize
 
 
 # Security: Limit the maximum length of text allowed for chunking to prevent DoS.
@@ -121,20 +121,20 @@ class Chunker:
     ) -> str:
         lines: List[str] = []
         if post is not None:
-            lines.append(f"Post (r/{post.subreddit}): {post.title.strip()}")
-            if post.body.strip():
-                lines.append(post.body.strip())
+            subreddit = sanitize(post.subreddit, limit=50)
+            title = sanitize(post.title, limit=200)
+            body = sanitize(post.body, limit=400)
+            lines.append(f"Post (r/{subreddit}): {title}")
+            if body:
+                lines.append(body)
+
         if ancestors:
             lines.append("Thread context:")
             for a in ancestors:
-                # Performance optimization: slice before replace() to avoid
-                # expensive string operations on very large comments.
-                stripped = a.body.strip()
-                if len(stripped) <= 240:
-                    snippet = stripped.replace("\n", " ")
-                else:
-                    snippet = stripped[:237].replace("\n", " ") + "..."
-                lines.append(f"- {a.author or 'unknown'}: {snippet}")
+                # Use unified sanitize helper to prevent prompt/log injection.
+                author = sanitize(a.author, limit=50) or "unknown"
+                snippet = sanitize(a.body, limit=240)
+                lines.append(f"- {author}: {snippet}")
         return "\n".join(lines)
 
     def _make_chunks(
