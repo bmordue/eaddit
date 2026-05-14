@@ -71,3 +71,31 @@ def test_chunker_max_ancestors_enforced():
     from eaddit.chunker import MAX_ANCESTORS
     with pytest.raises(ValueError, match="max_ancestors too large"):
         Chunker(max_ancestors=MAX_ANCESTORS + 1)
+
+
+def test_metadata_sanitization():
+    from eaddit.models import post_metadata, Post
+
+    # Test truncation and control character removal
+    malicious_author = "attacker\n[INJECTION]\r" + "a" * 500
+    post = Post(
+        id="test_id",
+        title="title",
+        body="body",
+        score=1,
+        url="http://example.com",
+        created_utc=0,
+        subreddit="test_sub",
+        author=malicious_author
+    )
+
+    meta = post_metadata(post)
+    author = meta["author"]
+
+    # Should be truncated to 200
+    assert len(author) <= 200
+    # Should not contain newlines or carriage returns
+    assert "\n" not in author
+    assert "\r" not in author
+    # Should be stripped
+    assert author.endswith("a")

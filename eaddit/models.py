@@ -124,19 +124,29 @@ class RetrievalResult:
         }
 
 
+def _sanitize(value: Optional[str], limit: int = 200) -> Optional[str]:
+    """Truncate and strip control characters to prevent prompt/log injection."""
+    if value is None:
+        return None
+    # Truncate first to minimize work on long strings.
+    s = str(value)[:limit]
+    # Replace newlines and other control characters with spaces.
+    return "".join(c if c.isprintable() else " " for c in s).strip()
+
+
 def post_metadata(post: Post) -> Dict[str, Any]:
     """Return the metadata schema described in PLAN.md for a post chunk."""
 
     return {
-        "post_id": post.id,
+        "post_id": _sanitize(post.id),
         "comment_id": None,
         "score": post.score,
         "created_utc": post.created_utc,
-        "author": post.author,
-        "url": post.url,
+        "author": _sanitize(post.author),
+        "url": post.url,  # URLs are handled as-is; truncation might break them.
         "parent_id": None,
         "depth": 0,
-        "subreddit": post.subreddit,
+        "subreddit": _sanitize(post.subreddit),
     }
 
 
@@ -144,13 +154,13 @@ def comment_metadata(comment: Comment, post: Optional[Post] = None) -> Dict[str,
     """Return the metadata schema described in PLAN.md for a comment chunk."""
 
     return {
-        "post_id": comment.post_id,
-        "comment_id": comment.id,
+        "post_id": _sanitize(comment.post_id),
+        "comment_id": _sanitize(comment.id),
         "score": comment.score,
         "created_utc": comment.created_utc,
-        "author": comment.author,
+        "author": _sanitize(comment.author),
         "url": post.url if post is not None else None,
-        "parent_id": comment.parent_id,
+        "parent_id": _sanitize(comment.parent_id),
         "depth": comment.depth,
-        "subreddit": post.subreddit if post is not None else None,
+        "subreddit": _sanitize(post.subreddit) if post is not None else None,
     }
