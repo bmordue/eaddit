@@ -130,6 +130,12 @@ def _sanitize(value: Optional[str], limit: int = 200) -> Optional[str]:
         return None
     # Truncate first to minimize work on long strings.
     s = str(value)[:limit]
+
+    # Performance optimization: if the string is already printable (the common case
+    # for IDs and authors), we can skip the expensive character-by-character loop.
+    if s.isprintable():
+        return s.strip()
+
     # Replace newlines and other control characters with spaces.
     return "".join(c if c.isprintable() else " " for c in s).strip()
 
