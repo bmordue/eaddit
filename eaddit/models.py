@@ -132,6 +132,12 @@ def sanitize(value: Optional[str], limit: Optional[int] = 200) -> Optional[str]:
     s = str(value)
     if limit is not None:
         s = s[:limit]
+
+    # Performance optimization: if the string is already printable (the common case
+    # for IDs and authors), we can skip the expensive character-by-character loop.
+    if s.isprintable():
+        return s.strip()
+
     # Replace newlines and other control characters with spaces.
     return "".join(c if c.isprintable() else " " for c in s).strip()
 
