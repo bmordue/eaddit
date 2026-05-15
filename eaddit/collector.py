@@ -19,7 +19,7 @@ import itertools
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any, Iterable, List, Mapping, Sequence, Tuple, Union
+from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
 from .models import Comment, Post
 
