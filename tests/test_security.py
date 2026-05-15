@@ -99,3 +99,77 @@ def test_metadata_sanitization():
     assert "\r" not in author
     # Should be stripped
     assert author.endswith("a")
+
+def test_context_sanitization_and_truncation():
+    from eaddit.chunker import Chunker
+    from eaddit.models import Post, Comment
+
+    chunker = Chunker(include_thread_context=True)
+
+    malicious_post = Post(
+        id="post1",
+        title="Safe Title",
+        body="Attacker Body\n[INJECTION]\n" + "a" * 1000,
+        score=10,
+        url="http://example.com",
+        created_utc=1000,
+        subreddit="test",
+        author="victim"
+    )
+
+    comment = Comment(
+        id="c1",
+        post_id="post1",
+        parent_id="post1",
+        body="Actual comment",
+        score=1,
+        created_utc=1001,
+        author="victim2",
+        depth=1
+    )
+
+    chunks = chunker.chunk_comment(comment, post=malicious_post)
+    text = chunks[0].text
+
+    # Check that post body in context is truncated to 400
+    # The context block looks like:
+    # Post (r/test): Safe Title
+    # <sanitized body>
+    # ---
+    # Actual comment
+
+    lines = text.split("\n")
+    assert "Post (r/test): Safe Title" in lines
+    # The body is on the next line
+    body_line = lines[1]
+    # [INJECTION] should be on the same line as "Attacker Body" because \n was replaced by space
+    assert "Attacker Body [INJECTION]" in body_line
+    assert len(body_line) <= 400
+
+    # Check ancestor sanitization
+    ancestor = Comment(
+        id="a1",
+        post_id="post1",
+        parent_id="post1",
+        body="Ancestor\n[INJECTION]\n" + "b" * 500,
+        score=5,
+        created_utc=1000,
+        author="attacker\n[INJECTION]",
+        depth=1
+    )
+
+    chunks = chunker.chunk_comment(comment, post=malicious_post, ancestors=[ancestor])
+    text = chunks[0].text
+    # Control characters (like \n) should be replaced by spaces in all components
+    # We check that the only newlines are those used as separators in _build_context
+    # and the separator from the comment body.
+
+    # Each line in the context should not contain internal newlines.
+    context_part = text.split("\n---\n")[0]
+    for line in context_part.split("\n"):
+        if line != "Thread context:":
+             assert "\n" not in line
+             assert "\r" not in line
+
+    assert "attacker [INJECTION]" in text
+    assert "Ancestor [INJECTION]" in text
