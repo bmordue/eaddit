@@ -21,14 +21,14 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
+from .embedder import Embedder
+from .models import Chunk, RetrievalResult, sanitize
+from .store import InMemoryVectorStore, MetadataFilter
+
 # Security: Limit the maximum length of query text to prevent DoS.
 MAX_QUERY_LENGTH = 10_000
 MAX_TOP_K = 100
 MAX_ANCESTORS = 20
-
-from .embedder import Embedder
-from .models import Chunk, RetrievalResult
-from .store import InMemoryVectorStore, MetadataFilter
 
 
 class LLM(ABC):
@@ -179,12 +179,14 @@ def build_prompt(query: str, results: Sequence[RetrievalResult]) -> str:
         "answer the question. If the excerpts do not contain the answer, say "
         "you do not know."
     )
+    # Sanitize the query to prevent structural prompt injection.
+    safe_query = sanitize(query, limit=None)
     for i, r in enumerate(results, start=1):
         sections.append(f"\n[Excerpt {i}] (score={r.score:.4f})")
         for a in r.ancestors:
             sections.append(_format_chunk(a, prefix="context: "))
         sections.append(_format_chunk(r.chunk))
-    sections.append(f"\nQuestion: {query}\nAnswer:")
+    sections.append(f"\nQuestion: {safe_query}\nAnswer:")
     return "\n".join(sections)
 
 
@@ -192,4 +194,6 @@ def _format_chunk(chunk: Chunk, prefix: str = "") -> str:
     meta = chunk.metadata
     kind = "post" if meta.get("comment_id") is None else "comment"
     author = meta.get("author") or "unknown"
-    return f"{prefix}({kind} by {author}) {chunk.text}"
+    # Sanitize the chunk text as a defense-in-depth measure.
+    text = sanitize(chunk.text, limit=None)
+    return f"{prefix}({kind} by {author}) {text}"

@@ -24,7 +24,6 @@ from .chunker import Chunker
 from .collector import Collector, JSONFixtureCollector
 from .embedder import Embedder, HashingEmbedder
 from .ingest import IngestionPipeline
-from .models import Chunk
 from .rag import MAX_QUERY_LENGTH, RAGQueryEngine, build_prompt
 from .store import InMemoryVectorStore
 

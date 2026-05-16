@@ -63,8 +63,9 @@ class Chunker:
     # Public API
     # ------------------------------------------------------------------ #
     def chunk_post(self, post: Post) -> List[Chunk]:
-        title = post.title.strip()
-        body = post.body.strip()
+        # Sanitize raw Reddit content to prevent structural prompt injection.
+        title = sanitize(post.title, limit=None)
+        body = sanitize(post.body, limit=None)
         text = f"{title}\n\n{body}".strip() if body else title
         return self._make_chunks(
             base_id=f"post:{post.id}",
@@ -78,7 +79,8 @@ class Chunker:
         post: Optional[Post] = None,
         ancestors: Optional[Sequence[Comment]] = None,
     ) -> List[Chunk]:
-        body = comment.body.strip()
+        # Sanitize raw Reddit content to prevent structural prompt injection.
+        body = sanitize(comment.body, limit=None)
         if self.include_thread_context:
             context = self._build_context(post, ancestors or ())
             text = f"{context}\n---\n{body}".strip() if context else body
