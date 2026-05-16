@@ -10,6 +10,12 @@ from dataclasses import dataclass, field
 from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
+# Security: Limit metadata field lengths to mitigate DoS risks.
+MAX_URL_LENGTH = 2048
+MAX_TEXT_LENGTH = 100_000
+MAX_CACHE_LENGTH = 1024
+MAX_QUERY_LENGTH = 10_000
+
 
 @dataclass(frozen=True)
 class Post:
@@ -134,12 +140,25 @@ def sanitize(value: Optional[str], limit: Optional[int] = 200) -> Optional[str]:
     s = str(value)
     if limit is not None:
         s = s[:limit]
+    else:
+        # Security: Enforce a hard limit even when no limit is requested
+        # to prevent processing of extremely large strings.
+        s = s[:MAX_TEXT_LENGTH]
+
+    # Security: Avoid caching very long strings (e.g. from post bodies) to prevent
+    # memory exhaustion in the LRU cache.
+    if len(s) > MAX_CACHE_LENGTH:
+        return _do_sanitize(s)
 
     return _sanitize_inner(s)
 
 
 @lru_cache(maxsize=1024)
 def _sanitize_inner(s: str) -> str:
+    return _do_sanitize(s)
+
+
+def _do_sanitize(s: str) -> str:
     # Performance optimization: if the string is already printable (the common case
     # for IDs and authors), we can skip the expensive character-by-character loop.
     if s.isprintable():
@@ -158,7 +177,7 @@ def post_metadata(post: Post) -> Dict[str, Any]:
         "score": post.score,
         "created_utc": post.created_utc,
         "author": sanitize(post.author),
-        "url": sanitize(post.url, limit=None),
+        "url": sanitize(post.url, limit=MAX_URL_LENGTH),
         "parent_id": None,
         "depth": 0,
         "subreddit": sanitize(post.subreddit),
@@ -174,7 +193,7 @@ def comment_metadata(comment: Comment, post: Optional[Post] = None) -> Dict[str,
         "score": comment.score,
         "created_utc": comment.created_utc,
         "author": sanitize(comment.author),
-        "url": sanitize(post.url, limit=None) if post is not None else None,
+        "url": sanitize(post.url, limit=MAX_URL_LENGTH) if post is not None else None,
         "parent_id": sanitize(comment.parent_id),
         "depth": comment.depth,
         "subreddit": sanitize(post.subreddit) if post is not None else None,
