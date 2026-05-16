@@ -7,6 +7,7 @@ the contract between the collector, chunker, embedder, store and query layers.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 
@@ -128,11 +129,17 @@ def sanitize(value: Optional[str], limit: Optional[int] = 200) -> Optional[str]:
     """Truncate and strip control characters to prevent prompt/log injection."""
     if value is None:
         return None
-    # Truncate first to minimize work on long strings.
+    # Truncate first to minimize work on long strings and avoid caching
+    # huge values (e.g. raw bodies) which could lead to OOM.
     s = str(value)
     if limit is not None:
         s = s[:limit]
 
+    return _sanitize_inner(s)
+
+
+@lru_cache(maxsize=1024)
+def _sanitize_inner(s: str) -> str:
     # Performance optimization: if the string is already printable (the common case
     # for IDs and authors), we can skip the expensive character-by-character loop.
     if s.isprintable():
