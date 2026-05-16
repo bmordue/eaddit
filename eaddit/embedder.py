@@ -16,6 +16,7 @@ import collections
 import hashlib
 import math
 import re
+import struct
 from abc import ABC, abstractmethod
 from typing import Dict, Iterable, List, Sequence, Tuple
 
@@ -41,6 +42,40 @@ class Embedder(ABC):
         return self.embed([text])[0]
 
 
+class _HashCache(Dict[str, Tuple[int, float]]):
+    """Specialised cache that performs blake2b hashing on missing items.
+
+    This class avoids the overhead of repeated 'if token in cache' checks by
+    leveraging the '__missing__' protocol. It also uses '.copy()' on a
+    pre-configured hash object for faster hashing.
+    """
+
+    def __init__(self, dim: int) -> None:
+        super().__init__()
+        self._dim = dim
+        # Pre-configure the blake2b hasher to avoid repeated object creation.
+        self._base_hasher = hashlib.blake2b(digest_size=8)
+
+    def __missing__(self, key: str) -> Tuple[int, float]:
+        # Hash the token using a copy of the pre-configured hasher.
+        h = self._base_hasher.copy()
+        h.update(key.encode("utf-8"))
+        digest = h.digest()
+
+        # Performance optimization: struct.unpack_from is faster than
+        # int.from_bytes() for extracting integers from bytes.
+        # '>I' is big-endian 4-byte unsigned int.
+        bucket = struct.unpack_from(">I", digest)[0] % self._dim
+
+        # The 5th byte's lowest bit decides the sign — keeps the embedding
+        # roughly zero-mean for unrelated tokens.
+        sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+
+        val = (bucket, sign)
+        self[key] = val
+        return val
+
+
 class HashingEmbedder(Embedder):
     """A deterministic feature-hashing bag-of-words embedder.
 
@@ -60,7 +95,7 @@ class HashingEmbedder(Embedder):
             raise ValueError("batch_size must be positive")
         self._dim = dim
         self._batch_size = batch_size
-        self._hash_cache: Dict[str, Tuple[int, float]] = {}
+        self._hash_cache = _HashCache(dim)
 
     @property
     def dimension(self) -> int:
@@ -74,10 +109,18 @@ class HashingEmbedder(Embedder):
         # Materialise once so we can batch and report errors clearly.
         texts = list(texts)
         out: List[List[float]] = []
+
         for start in range(0, len(texts), self._batch_size):
             batch = texts[start : start + self._batch_size]
+            # Performance optimization: deduplicate identical texts within the batch
+            # to avoid redundant embedding calculations.
+            memo: Dict[str, List[float]] = {}
             for text in batch:
-                out.append(self._embed_one(text))
+                if text not in memo:
+                    memo[text] = self._embed_one(text)
+                # Ensure we return a fresh copy to avoid shared mutable state
+                # if the caller modifies the vectors in-place.
+                out.append(list(memo[text]))
         return out
 
     def _embed_one(self, text: str) -> List[float]:
@@ -91,19 +134,11 @@ class HashingEmbedder(Embedder):
         counts = collections.Counter(_WORD_RE.findall(text.lower()))
 
         # Performance optimization: use local variable for cache lookup speed
-        # and avoid double lookups with dict.get().
+        # and leverage the __missing__ protocol of _HashCache to avoid
+        # manual 'if token in cache' checks.
         cache = self._hash_cache
         for token, count in counts.items():
-            res = cache.get(token)
-            if res is not None:
-                bucket, sign = res
-            else:
-                digest = hashlib.blake2b(token.encode("utf-8"), digest_size=8).digest()
-                bucket = int.from_bytes(digest[:4], "big") % self._dim
-                # The 5th byte's lowest bit decides the sign — keeps the embedding
-                # roughly zero-mean for unrelated tokens.
-                sign = 1.0 if (digest[4] & 1) == 0 else -1.0
-                cache[token] = (bucket, sign)
+            bucket, sign = cache[token]
             vec[bucket] += sign * count
 
         norm = math.hypot(*vec)
