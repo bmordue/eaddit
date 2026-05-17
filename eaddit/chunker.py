@@ -17,11 +17,18 @@ import hashlib
 from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence
 
-from .models import Chunk, Comment, Post, comment_metadata, post_metadata, sanitize
+from .models import (
+    MAX_TEXT_LENGTH,
+    Chunk,
+    Comment,
+    Post,
+    comment_metadata,
+    post_metadata,
+    sanitize,
+)
 
 
 # Security: Limit the maximum length of text allowed for chunking to prevent DoS.
-MAX_TEXT_LENGTH = 100_000
 MAX_ANCESTORS = 20
 
 
@@ -63,6 +70,10 @@ class Chunker:
     # Public API
     # ------------------------------------------------------------------ #
     def chunk_post(self, post: Post) -> List[Chunk]:
+        # Security: Fail fast if input is oversized before processing.
+        if len(post.title or "") + len(post.body or "") > MAX_TEXT_LENGTH:
+            raise ValueError(f"Input text too long (> {MAX_TEXT_LENGTH} chars)")
+
         # Sanitize raw Reddit content to prevent structural prompt injection.
         title = sanitize(post.title, limit=None)
         body = sanitize(post.body, limit=None)
@@ -79,6 +90,10 @@ class Chunker:
         post: Optional[Post] = None,
         ancestors: Optional[Sequence[Comment]] = None,
     ) -> List[Chunk]:
+        # Security: Fail fast if input is oversized before processing.
+        if len(comment.body or "") > MAX_TEXT_LENGTH:
+            raise ValueError(f"Input text too long (> {MAX_TEXT_LENGTH} chars)")
+
         # Sanitize raw Reddit content to prevent structural prompt injection.
         body = sanitize(comment.body, limit=None)
         if self.include_thread_context:
@@ -146,10 +161,6 @@ class Chunker:
         text: str,
         metadata: Dict,
     ) -> List[Chunk]:
-        if len(text) > MAX_TEXT_LENGTH:
-            raise ValueError(
-                f"Input text too long ({len(text)} > {MAX_TEXT_LENGTH} chars)"
-            )
         text = text.strip()
         if not text:
             return []

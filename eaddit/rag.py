@@ -22,11 +22,10 @@ from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
 from .embedder import Embedder
-from .models import Chunk, RetrievalResult, sanitize
+from .models import MAX_QUERY_LENGTH, Chunk, RetrievalResult, sanitize
 from .store import InMemoryVectorStore, MetadataFilter
 
 # Security: Limit the maximum length of query text to prevent DoS.
-MAX_QUERY_LENGTH = 10_000
 MAX_TOP_K = 100
 MAX_ANCESTORS = 20
 
@@ -172,6 +171,9 @@ def build_prompt(query: str, results: Sequence[RetrievalResult]) -> str:
     The format is intentionally model-agnostic: section headers and a final
     ``Question:`` line. Any LLM front-end can consume it.
     """
+
+    if len(query) > MAX_QUERY_LENGTH:
+        raise ValueError(f"Query too long (> {MAX_QUERY_LENGTH} chars)")
 
     sections: List[str] = []
     sections.append(
