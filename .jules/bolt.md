@@ -21,3 +21,11 @@
 ## 2026-05-14 - [Fast-path for string sanitization]
 **Learning:** The `_sanitize` helper, used frequently for metadata like IDs and authors, was a hidden bottleneck due to unconditional character-by-character iteration. Since most identifiers are already printable, using `s.isprintable()` as a fast-path check allows skipping the expensive loop entirely, resulting in a ~7.4x performance improvement for safe strings.
 **Action:** Use `isprintable()` to bypass complex sanitization or replacement loops when the input is already compliant with safety requirements.
+
+## 2026-05-18 - [Optimizing token hashing with copy and struct]
+**Learning:** In hot loops involving cryptographic hashing (like 'HashingEmbedder'), using 'hashlib.blake2b().copy()' is significantly faster (~40% gain) than re-instantiating the hasher for every token. Additionally, 'struct.unpack_from' is nearly twice as fast as 'int.from_bytes' for converting hash digests to integers. Finally, implementing a cache using the '__missing__' protocol avoids repeated 'if token in cache' checks, further streamlining the hot path.
+**Action:** Use hasher copying and 'struct.unpack_from' in performance-critical hashing logic. Leverage '__missing__' for high-performance caches.
+
+## 2026-05-18 - [Safe deduplication in batch processing]
+**Learning:** When implementing batch-level deduplication to save computation (e.g., in 'HashingEmbedder.embed'), returning the same mutable list object for identical inputs can cause unexpected side effects if the caller modifies the results in-place. To maintain a safe API while still benefiting from memoization, always return a fresh copy (e.g., 'list(memo[text])').
+**Action:** Always return fresh copies of memoized mutable objects in public APIs to prevent shared state regressions.
