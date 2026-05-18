@@ -96,6 +96,9 @@ class HashingEmbedder(Embedder):
         self._dim = dim
         self._batch_size = batch_size
         self._hash_cache = _HashCache(dim)
+        # Performance optimization: use a persistent memo to avoid redundant
+        # calculations for the same text across multiple embed() calls.
+        self._memo: Dict[str, List[float]] = {}
 
     @property
     def dimension(self) -> int:
@@ -110,11 +113,11 @@ class HashingEmbedder(Embedder):
         texts = list(texts)
         out: List[List[float]] = []
 
+        # Performance optimization: use persistent memo to avoid redundant
+        # calculations across calls.
+        memo = self._memo
         for start in range(0, len(texts), self._batch_size):
             batch = texts[start : start + self._batch_size]
-            # Performance optimization: deduplicate identical texts within the batch
-            # to avoid redundant embedding calculations.
-            memo: Dict[str, List[float]] = {}
             for text in batch:
                 if text not in memo:
                     memo[text] = self._embed_one(text)
