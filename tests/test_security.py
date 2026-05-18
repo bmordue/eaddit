@@ -7,7 +7,6 @@ from eaddit.models import Post
 from eaddit.store import InMemoryVectorStore
 
 def test_chunker_max_length_enforced():
-    chunker = Chunker()
     # Now Post itself enforces MAX_TEXT_LENGTH for the body.
     long_text = "a" * (MAX_TEXT_LENGTH + 1)
     with pytest.raises(ValueError, match="Post body exceeds limit"):
@@ -172,3 +171,41 @@ def test_context_sanitization_and_truncation():
 
     assert "attacker [INJECTION]" in text
     assert "Ancestor [INJECTION]" in text
+
+def test_post_url_max_length_enforced():
+    from eaddit.models import MAX_URL_LENGTH
+    long_url = "http://example.com/" + "a" * MAX_URL_LENGTH
+    with pytest.raises(ValueError, match="Post url exceeds limit"):
+        Post(
+            id="test",
+            title="title",
+            body="body",
+            score=1,
+            url=long_url,
+            created_utc=0,
+            subreddit="test",
+            author="test"
+        )
+
+def test_post_numeric_types_enforced():
+    # score must be int
+    with pytest.raises(TypeError, match="Post score must be an integer"):
+        Post("id", "title", "body", "not an int", "url", 0, "sub", "author")
+
+    # created_utc must be int
+    with pytest.raises(TypeError, match="Post created_utc must be an integer"):
+        Post("id", "title", "body", 1, "url", "not an int", "sub", "author")
+
+def test_comment_numeric_types_enforced():
+    from eaddit.models import Comment
+    # score must be int
+    with pytest.raises(TypeError, match="Comment score must be an integer"):
+        Comment("id", "pid", "paid", "body", "not an int", 0, "author", 1)
+
+    # created_utc must be int
+    with pytest.raises(TypeError, match="Comment created_utc must be an integer"):
+        Comment("id", "pid", "paid", "body", 1, "not an int", "author", 1)
+
+    # depth must be int
+    with pytest.raises(TypeError, match="Comment depth must be an integer"):
+        Comment("id", "pid", "paid", "body", 1, 0, "author", "not an int")
