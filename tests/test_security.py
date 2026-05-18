@@ -8,21 +8,19 @@ from eaddit.store import InMemoryVectorStore
 
 def test_chunker_max_length_enforced():
     chunker = Chunker()
-    # Create a post with text exceeding the limit
+    # Now Post itself enforces MAX_TEXT_LENGTH for the body.
     long_text = "a" * (MAX_TEXT_LENGTH + 1)
-    post = Post(
-        id="test",
-        title="title",
-        body=long_text,
-        score=1,
-        url="http://example.com",
-        created_utc=0,
-        subreddit="test",
-        author="test"
-    )
-
-    with pytest.raises(ValueError, match="Input text too long"):
-        chunker.chunk_post(post)
+    with pytest.raises(ValueError, match="Post body exceeds limit"):
+        Post(
+            id="test",
+            title="title",
+            body=long_text,
+            score=1,
+            url="http://example.com",
+            created_utc=0,
+            subreddit="test",
+            author="test"
+        )
 
 def test_cli_query_max_length_enforced():
     args = argparse.Namespace(
@@ -76,8 +74,9 @@ def test_chunker_max_ancestors_enforced():
 def test_metadata_sanitization():
     from eaddit.models import post_metadata, Post
 
-    # Test truncation and control character removal
-    malicious_author = "attacker\n[INJECTION]\r" + "a" * 500
+    # Test truncation and control character removal.
+    # Note: author is now limited to 100 chars in Post.__post_init__
+    malicious_author = "attacker\n[INJECTION]\r" + "a" * 70
     post = Post(
         id="test_id",
         title="title",
