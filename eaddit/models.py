@@ -211,14 +211,31 @@ def _sanitize_inner(s: str) -> str:
     return _do_sanitize(s)
 
 
+# Pre-calculate a translation table for the first 256 characters (ASCII/Latin-1)
+# to replace non-printable characters with spaces. This allows str.translate
+# to handle most common cases (newlines, tabs, nulls) at C-speed.
+_SAN_TRANS_TABLE = str.maketrans({
+    i: " " for i in range(256) if not chr(i).isprintable()
+})
+
+
 def _do_sanitize(s: str) -> str:
     # Performance optimization: if the string is already printable (the common case
     # for IDs and authors), we can skip the expensive character-by-character loop.
     if s.isprintable():
         return s.strip()
 
-    # Replace newlines and other control characters with spaces.
-    return "".join(c if c.isprintable() else " " for c in s).strip()
+    # Fast-path for common characters (ASCII/Latin-1 range).
+    s = s.translate(_SAN_TRANS_TABLE)
+
+    # If the string still contains non-printable characters (rare exotic Unicode),
+    # fall back to a character-by-character loop.
+    if not s.isprintable():
+        # Performance optimization: list comprehension is ~25% faster than
+        # generator expression for "".join() in pure Python.
+        return "".join([c if c.isprintable() else " " for c in s]).strip()
+
+    return s.strip()
 
 
 def post_metadata(post: Post) -> Dict[str, Any]:
