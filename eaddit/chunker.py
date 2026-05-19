@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Dict, Iterable, List, Optional, Sequence
 
 from .models import (
+    MAX_ANCESTORS,
     MAX_TEXT_LENGTH,
     Chunk,
     Comment,
@@ -26,10 +27,6 @@ from .models import (
     post_metadata,
     sanitize,
 )
-
-
-# Security: Limit the maximum length of text allowed for chunking to prevent DoS.
-MAX_ANCESTORS = 20
 
 
 @dataclass

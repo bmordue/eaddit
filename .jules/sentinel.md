@@ -12,3 +12,8 @@
 **Vulnerability:** The chunking logic used a '#' delimiter to generate sub-IDs for long text (e.g., 'id#1'). An attacker could craft a root object ID that includes '#' to overwrite chunks of another object, or cause collisions between multiple root objects.
 **Learning:** Using a simple character delimiter for derived IDs is dangerous if that character is not forbidden in the base ID. This can lead to subtle logic flaws where data is unintentionally overwritten in the vector store.
 **Prevention:** Enforce strict character sets for IDs in the model layer and forbid any characters used as delimiters in downstream processing (like '#' for chunk indexing).
+
+## 2025-06-15 - [Unbounded Resource Consumption in Embedding Cache]
+**Vulnerability:** The `HashingEmbedder` used an unbounded dictionary to cache embeddings for all processed texts. In long-running applications or when processing large-scale unique datasets, this leads to continuous memory growth and eventual Denial of Service via OOM.
+**Learning:** Caching mechanisms intended for performance must always be bounded, especially when handling untrusted or high-volume external data. Manual dictionary-based caches are prone to being forgotten during maintenance.
+**Prevention:** Use standardized, size-limited caching decorators like `functools.lru_cache` with a conservative `maxsize` for all in-memory caching of variable-sized or high-cardinality data.

@@ -22,12 +22,16 @@ from dataclasses import dataclass
 from typing import List, Optional, Sequence
 
 from .embedder import Embedder
-from .models import MAX_QUERY_LENGTH, Chunk, RetrievalResult, sanitize
+from .models import (
+    MAX_ANCESTORS,
+    MAX_NAME_LENGTH,
+    MAX_QUERY_LENGTH,
+    MAX_TOP_K,
+    Chunk,
+    RetrievalResult,
+    sanitize,
+)
 from .store import InMemoryVectorStore, MetadataFilter
-
-# Security: Limit the maximum length of query text to prevent DoS.
-MAX_TOP_K = 100
-MAX_ANCESTORS = 20
 
 
 class LLM(ABC):
@@ -195,7 +199,8 @@ def build_prompt(query: str, results: Sequence[RetrievalResult]) -> str:
 def _format_chunk(chunk: Chunk, prefix: str = "") -> str:
     meta = chunk.metadata
     kind = "post" if meta.get("comment_id") is None else "comment"
-    author = meta.get("author") or "unknown"
+    # Defense-in-depth: sanitize metadata fields used in the prompt.
+    author = sanitize(meta.get("author"), limit=MAX_NAME_LENGTH) or "unknown"
     # Sanitize the chunk text as a defense-in-depth measure.
     text = sanitize(chunk.text, limit=None)
     return f"{prefix}({kind} by {author}) {text}"

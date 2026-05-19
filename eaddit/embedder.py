@@ -18,7 +18,10 @@ import math
 import re
 import struct
 from abc import ABC, abstractmethod
+from functools import lru_cache
 from typing import Dict, Iterable, List, Sequence, Tuple
+
+from .models import MAX_DIMENSION
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -91,14 +94,19 @@ class HashingEmbedder(Embedder):
     def __init__(self, dim: int = 256, batch_size: int = 64) -> None:
         if dim <= 0:
             raise ValueError("dim must be positive")
+        if dim > MAX_DIMENSION:
+            raise ValueError(f"dim too large ({dim} > {MAX_DIMENSION})")
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
         self._dim = dim
         self._batch_size = batch_size
         self._hash_cache = _HashCache(dim)
-        # Performance optimization: use a persistent memo to avoid redundant
-        # calculations for the same text across multiple embed() calls.
-        self._memo: Dict[str, List[float]] = {}
+
+    @lru_cache(maxsize=1024)
+    def _get_embedding(self, text: str) -> List[float]:
+        # Performance optimization: use persistent LRU cache to avoid redundant
+        # calculations across calls while preventing memory exhaustion.
+        return self._embed_one(text)
 
     @property
     def dimension(self) -> int:
@@ -113,17 +121,12 @@ class HashingEmbedder(Embedder):
         texts = list(texts)
         out: List[List[float]] = []
 
-        # Performance optimization: use persistent memo to avoid redundant
-        # calculations across calls.
-        memo = self._memo
         for start in range(0, len(texts), self._batch_size):
             batch = texts[start : start + self._batch_size]
             for text in batch:
-                if text not in memo:
-                    memo[text] = self._embed_one(text)
                 # Ensure we return a fresh copy to avoid shared mutable state
                 # if the caller modifies the vectors in-place.
-                out.append(list(memo[text]))
+                out.append(list(self._get_embedding(text)))
         return out
 
     def _embed_one(self, text: str) -> List[float]:
