@@ -44,22 +44,27 @@ class Post:
         for field_name, value, limit in [
             ("id", self.id, MAX_ID_LENGTH),
             ("title", self.title, MAX_TITLE_LENGTH),
+            ("body", self.body, MAX_TEXT_LENGTH),
             ("subreddit", self.subreddit, MAX_NAME_LENGTH),
             ("author", self.author, MAX_NAME_LENGTH),
+            ("url", self.url, MAX_URL_LENGTH),
         ]:
             if not isinstance(value, str):
                 raise TypeError(f"Post {field_name} must be a string")
             if len(value) > limit:
                 raise ValueError(f"Post {field_name} exceeds limit of {limit}")
 
+        # Security: Ensure numeric fields are integers.
+        for field_name, value in [
+            ("score", self.score),
+            ("created_utc", self.created_utc),
+        ]:
+            if not isinstance(value, int):
+                raise TypeError(f"Post {field_name} must be an integer")
+
         # Security: Forbid '#' in IDs to prevent chunk ID collisions.
         if "#" in self.id:
             raise ValueError("Post id cannot contain '#'")
-
-        if not isinstance(self.body, str):
-            raise TypeError("Post body must be a string")
-        if len(self.body) > MAX_TEXT_LENGTH:
-            raise ValueError(f"Post body exceeds limit of {MAX_TEXT_LENGTH}")
 
     def to_dict(self) -> Dict[str, Any]:
         # Performance optimization: manual dict creation is ~7x faster than
@@ -101,6 +106,7 @@ class Comment:
             ("post_id", self.post_id, MAX_ID_LENGTH),
             ("parent_id", self.parent_id, MAX_ID_LENGTH),
             ("author", self.author, MAX_NAME_LENGTH),
+            ("body", self.body, MAX_TEXT_LENGTH),
         ]:
             if not isinstance(value, str):
                 raise TypeError(f"Comment {field_name} must be a string")
@@ -116,10 +122,14 @@ class Comment:
             if "#" in value:
                 raise ValueError(f"Comment {field_name} cannot contain '#'")
 
-        if not isinstance(self.body, str):
-            raise TypeError("Comment body must be a string")
-        if len(self.body) > MAX_TEXT_LENGTH:
-            raise ValueError(f"Comment body exceeds limit of {MAX_TEXT_LENGTH}")
+        # Security: Ensure numeric fields are integers.
+        for field_name, value in [
+            ("score", self.score),
+            ("created_utc", self.created_utc),
+            ("depth", self.depth),
+        ]:
+            if not isinstance(value, int):
+                raise TypeError(f"Comment {field_name} must be an integer")
 
     def to_dict(self) -> Dict[str, Any]:
         # Performance optimization: manual dict creation is ~7x faster than
