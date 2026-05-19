@@ -81,13 +81,18 @@ class InMemoryVectorStore:
                     f"vector for chunk {chunk.id!r} has dim {len(vec)}, "
                     f"expected {self._dimension}"
                 )
-            v_list = list(map(float, vec))
-            norm = math.hypot(*v_list)
-            if norm > 0 and not math.isclose(norm, 1.0, rel_tol=1e-9):
+            # Performance optimization: skip redundant float conversion and
+            # normalization for already-normalized vectors (the common case).
+            norm = math.hypot(*vec)
+            if math.isclose(norm, 1.0, rel_tol=1e-9):
+                v_list = list(vec)
+            elif norm > 0:
                 # Performance optimization: multiply by reciprocal instead of repeated
                 # division in the loop.
                 inv_norm = 1.0 / norm
-                v_list = [v * inv_norm for v in v_list]
+                v_list = [v * inv_norm for v in vec]
+            else:
+                v_list = list(vec)
 
             if chunk.id in self._chunks:
                 # Update existing ($O(1)$ lookup via _id_to_idx)

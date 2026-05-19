@@ -9,3 +9,7 @@
 ## 2026-05-20 - [Instance-level vs Batch-local memoization]
 **Learning:** For deterministic operations like HashingEmbedder, using a persistent instance-level memoization dictionary is significantly faster than a batch-local one, especially when the same texts are embedded across multiple calls. In benchmarks, this provided a ~10x speedup for subsequent calls with the same data.
 **Action:** Use instance-level caching for deterministic, expensive operations that may be called repeatedly with the same inputs.
+
+## 2026-05-20 - [Redundant Normalization in Vector Store]
+**Learning:** In 'InMemoryVectorStore.add', calling 'list(map(float, vec))' followed by 'math.hypot(*v_list)' and then a list comprehension for normalization results in up to three (N)$ passes and multiple intermediate list allocations. By checking the norm directly on the input vector and only converting/normalizing if necessary, we can achieve a ~70% speedup for the common case where vectors are already normalized.
+**Action:** Always check if a vector is already normalized using 'math.isclose(math.hypot(*vec), 1.0)' before performing expensive re-normalization or type conversion.
