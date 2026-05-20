@@ -26,7 +26,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from .models import Chunk, RetrievalResult
+from .models import MAX_DIMENSION, Chunk, RetrievalResult
 
 
 MetadataFilter = Callable[[Dict[str, Any]], bool]
@@ -43,6 +43,8 @@ class InMemoryVectorStore:
     def __init__(self, dimension: int) -> None:
         if dimension <= 0:
             raise ValueError("dimension must be positive")
+        if dimension > MAX_DIMENSION:
+            raise ValueError(f"dimension too large ({dimension} > {MAX_DIMENSION})")
         self._dimension = dimension
         self._ids: List[str] = []
         self._chunks: Dict[str, Chunk] = {}

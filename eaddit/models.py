@@ -20,6 +20,11 @@ MAX_ID_LENGTH = 64
 MAX_NAME_LENGTH = 100
 MAX_TITLE_LENGTH = 1000
 
+# Security: DoS protection constants
+MAX_TOP_K = 100
+MAX_ANCESTORS = 20
+MAX_DIMENSION = 10000
+
 
 @dataclass(frozen=True)
 class Post:
