@@ -24,7 +24,8 @@ from .chunker import Chunker
 from .collector import Collector, JSONFixtureCollector
 from .embedder import Embedder, HashingEmbedder
 from .ingest import IngestionPipeline
-from .rag import MAX_QUERY_LENGTH, RAGQueryEngine, build_prompt
+from .models import MAX_BATCH_SIZE, MAX_CHUNK_SIZE, MAX_COLLECT_LIMIT
+from .rag import MAX_QUERY_LENGTH, MAX_TOP_K, RAGQueryEngine, build_prompt
 from .store import InMemoryVectorStore
 
 
@@ -88,6 +89,15 @@ def _make_metadata_filter(
 # Subcommand handlers
 # ---------------------------------------------------------------------- #
 def cmd_ingest(args: argparse.Namespace) -> int:
+    if args.limit > MAX_COLLECT_LIMIT:
+        raise SystemExit(f"limit too large ({args.limit} > {MAX_COLLECT_LIMIT})")
+    if args.chunk_size > MAX_CHUNK_SIZE:
+        raise SystemExit(
+            f"chunk-size too large ({args.chunk_size} > {MAX_CHUNK_SIZE})"
+        )
+    if args.chunk_overlap >= args.chunk_size:
+        raise SystemExit("chunk-overlap must be less than chunk-size")
+
     embedder = _build_embedder(args.dim)
     store = _load_or_create_store(args.store, dimension=embedder.dimension)
     chunker = Chunker(
@@ -118,6 +128,9 @@ def cmd_query(args: argparse.Namespace) -> int:
         raise SystemExit(
             f"Query too long ({len(args.text)} > {MAX_QUERY_LENGTH} chars)"
         )
+    if args.top_k > MAX_TOP_K:
+        raise SystemExit(f"top-k too large ({args.top_k} > {MAX_TOP_K})")
+
     embedder = _build_embedder(args.dim)
     store_path = Path(args.store)
     if not store_path.exists():

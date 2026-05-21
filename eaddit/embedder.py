@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-from .models import MAX_DIMENSION
+from .models import MAX_BATCH_SIZE, MAX_DIMENSION
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -98,6 +98,8 @@ class HashingEmbedder(Embedder):
             raise ValueError(f"dim too large ({dim} > {MAX_DIMENSION})")
         if batch_size <= 0:
             raise ValueError("batch_size must be positive")
+        if batch_size > MAX_BATCH_SIZE:
+            raise ValueError(f"batch_size too large ({batch_size} > {MAX_BATCH_SIZE})")
         self._dim = dim
         self._batch_size = batch_size
         self._hash_cache = _HashCache(dim)

@@ -26,7 +26,7 @@ import tempfile
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Sequence
 
-from .models import MAX_DIMENSION, Chunk, RetrievalResult
+from .models import MAX_DIMENSION, MAX_TOP_K, Chunk, RetrievalResult
 
 
 MetadataFilter = Callable[[Dict[str, Any]], bool]
@@ -142,6 +142,8 @@ class InMemoryVectorStore:
             )
         if top_k <= 0:
             return []
+        if top_k > MAX_TOP_K:
+            raise ValueError(f"top_k too large ({top_k} > {MAX_TOP_K})")
 
         # Normalize query vector.
         q_norm = math.hypot(*query_vector) or 1.0

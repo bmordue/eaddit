@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Any, Iterable, List, Mapping, Optional, Sequence, Tuple, Union
 
-from .models import Comment, Post
+from .models import MAX_COLLECT_LIMIT, Comment, Post
 
 
 class Collector(ABC):
@@ -75,6 +75,8 @@ class JSONFixtureCollector(Collector):
         limit: int = 100,
         min_score: int = 0,
     ) -> Tuple[List[Post], List[Comment]]:
+        if limit > MAX_COLLECT_LIMIT:
+            raise ValueError(f"limit too large ({limit} > {MAX_COLLECT_LIMIT})")
         bucket = self._data.get(subreddit, {})
         raw_posts: Iterable[Mapping[str, Any]] = bucket.get("posts", [])
         raw_comments: Iterable[Mapping[str, Any]] = bucket.get("comments", [])
@@ -166,6 +168,8 @@ class PRAWCollector(Collector):  # pragma: no cover - exercised only with networ
         limit: int = 100,
         min_score: int = 0,
     ) -> Tuple[List[Post], List[Comment]]:
+        if limit > MAX_COLLECT_LIMIT:
+            raise ValueError(f"limit too large ({limit} > {MAX_COLLECT_LIMIT})")
         sub = self._reddit.subreddit(subreddit)
         posts: List[Post] = []
         comments: List[Comment] = []

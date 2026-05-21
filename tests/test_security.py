@@ -209,3 +209,74 @@ def test_comment_numeric_types_enforced():
     # depth must be int
     with pytest.raises(TypeError, match="Comment depth must be an integer"):
         Comment("id", "pid", "paid", "body", 1, 0, "author", "not an int")
+
+def test_collector_max_limit_enforced():
+    from eaddit.collector import JSONFixtureCollector
+    from eaddit.models import MAX_COLLECT_LIMIT
+    collector = JSONFixtureCollector({})
+    with pytest.raises(ValueError, match="limit too large"):
+        collector.collect("test", limit=MAX_COLLECT_LIMIT + 1)
+
+def test_chunker_max_chunk_size_enforced():
+    from eaddit.chunker import Chunker
+    from eaddit.models import MAX_CHUNK_SIZE
+    with pytest.raises(ValueError, match="chunk_size too large"):
+        Chunker(chunk_size=MAX_CHUNK_SIZE + 1)
+
+def test_embedder_max_batch_size_enforced():
+    from eaddit.embedder import HashingEmbedder
+    from eaddit.models import MAX_BATCH_SIZE
+    with pytest.raises(ValueError, match="batch_size too large"):
+        HashingEmbedder(batch_size=MAX_BATCH_SIZE + 1)
+
+def test_cli_ingest_limits_enforced():
+    from eaddit.cli import cmd_ingest
+    from eaddit.models import MAX_COLLECT_LIMIT, MAX_CHUNK_SIZE
+
+    # Test limit
+    args = argparse.Namespace(
+        subreddit="test",
+        limit=MAX_COLLECT_LIMIT + 1,
+        store="store.json",
+        source="json",
+        fixture="fixture.json",
+        dim=256,
+        chunk_size=256,
+        chunk_overlap=32,
+        flat_comments=False,
+        state=None,
+        full=False
+    )
+    with pytest.raises(SystemExit, match="limit too large"):
+        cmd_ingest(args)
+
+    # Test chunk_size
+    args.limit = 100
+    args.chunk_size = MAX_CHUNK_SIZE + 1
+    with pytest.raises(SystemExit, match="chunk-size too large"):
+        cmd_ingest(args)
+
+    # Test chunk_overlap
+    args.chunk_size = 256
+    args.chunk_overlap = 256
+    with pytest.raises(SystemExit, match="chunk-overlap must be less than chunk-size"):
+        cmd_ingest(args)
+
+def test_cli_query_top_k_limit_enforced():
+    from eaddit.cli import cmd_query
+    from eaddit.models import MAX_TOP_K
+    args = argparse.Namespace(
+        text="test",
+        store="store.json",
+        top_k=MAX_TOP_K + 1,
+        dim=256
+    )
+    with pytest.raises(SystemExit, match="top-k too large"):
+        cmd_query(args)
+
+def test_store_search_top_k_limit_enforced():
+    from eaddit.store import InMemoryVectorStore
+    from eaddit.models import MAX_TOP_K
+    store = InMemoryVectorStore(dimension=256)
+    with pytest.raises(ValueError, match="top_k too large"):
+        store.search([0.0]*256, top_k=MAX_TOP_K + 1)
