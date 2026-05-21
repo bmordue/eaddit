@@ -81,22 +81,31 @@ class JSONFixtureCollector(Collector):
         raw_posts: Iterable[Mapping[str, Any]] = bucket.get("posts", [])
         raw_comments: Iterable[Mapping[str, Any]] = bucket.get("comments", [])
 
-        # Performance optimization: use islice to avoid full materialization of posts
-        # and pre-filter comments by post_id and min_score to avoid unnecessary
-        # object creation and multiple passes.
-        posts = [_post_from_dict(p) for p in itertools.islice(raw_posts, limit)]
-        if not posts:
+        # Performance optimization: use islice to avoid full materialization of posts.
+        posts_slice = list(itertools.islice(raw_posts, limit))
+        if not posts_slice:
             return [], []
 
-        post_ids = {p.id for p in posts}
-        filtered_posts = [p for p in posts if p.score >= min_score]
+        # Performance optimization: build post_ids from raw dicts and filter before
+        # materializing Post objects to avoid expensive __post_init__ validation
+        # for items that will be discarded.
+        post_ids = {str(p["id"]) for p in posts_slice}
+        filtered_posts = [
+            _post_from_dict(p)
+            for p in posts_slice
+            if int(p.get("score", 0)) >= min_score
+        ]
 
         filtered_comments = []
         for c in raw_comments:
-            if c.get("post_id") in post_ids:
-                score = int(c.get("score", 0))
-                if score >= min_score:
-                    filtered_comments.append(_comment_from_dict(c))
+            # Performance optimization: avoid _comment_from_dict and multiple dict
+            # lookups for comments that don't match our criteria.
+            pid = c.get("post_id")
+            if pid is None:
+                continue
+            # Ensure type consistency for the set lookup (IDs can be ints in JSON).
+            if str(pid) in post_ids and int(c.get("score", 0)) >= min_score:
+                filtered_comments.append(_comment_from_dict(c))
 
         return filtered_posts, filtered_comments
 
