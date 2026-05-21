@@ -21,6 +21,7 @@ from .models import (
     MAX_ANCESTORS,
     MAX_CHUNK_SIZE,
     MAX_TEXT_LENGTH,
+    MIN_CHUNK_SIZE,
     Chunk,
     Comment,
     Post,
@@ -55,8 +56,8 @@ class Chunker:
     max_ancestors: int = 4
 
     def __post_init__(self) -> None:
-        if self.chunk_size <= 0:
-            raise ValueError("chunk_size must be positive")
+        if self.chunk_size < MIN_CHUNK_SIZE:
+            raise ValueError(f"chunk_size must be at least {MIN_CHUNK_SIZE}")
         if self.chunk_size > MAX_CHUNK_SIZE:
             raise ValueError(f"chunk_size too large ({self.chunk_size} > {MAX_CHUNK_SIZE})")
         if self.chunk_overlap < 0 or self.chunk_overlap >= self.chunk_size:
