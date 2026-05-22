@@ -17,3 +17,8 @@
 **Vulnerability:** The `HashingEmbedder` used an unbounded dictionary to cache embeddings for all processed texts. In long-running applications or when processing large-scale unique datasets, this leads to continuous memory growth and eventual Denial of Service via OOM.
 **Learning:** Caching mechanisms intended for performance must always be bounded, especially when handling untrusted or high-volume external data. Manual dictionary-based caches are prone to being forgotten during maintenance.
 **Prevention:** Use standardized, size-limited caching decorators like `functools.lru_cache` with a conservative `maxsize` for all in-memory caching of variable-sized or high-cardinality data.
+
+## 2025-06-20 - [Missing Validation in Intermediate Data Models]
+**Vulnerability:** The `Chunk` dataclass lacked the strict input validation and length limits present in the core `Post` and `Comment` models. Since chunks can be loaded from untrusted JSON store files, this created a vector for memory exhaustion or logic errors if a crafted store file contained extremely large chunk IDs or text content.
+**Learning:** Security validation must be applied to all models that handle externalized data, not just the initial ingestion models. Intermediate representations like `Chunk` are often overlooked but are just as critical when they are persisted and reloaded.
+**Prevention:** Implement `__post_init__` validation for all dataclasses that represent data stored or transmitted outside the process boundary, ensuring type safety and reasonable length limits at every layer.

@@ -331,7 +331,7 @@ def test_collectors_min_limit_enforced():
 
 def test_rag_build_prompt_max_length_enforced():
     from eaddit.rag import build_prompt, RetrievalResult, Chunk
-    from eaddit.models import MAX_PROMPT_LENGTH, MAX_TEXT_LENGTH
+    from eaddit.models import MAX_TEXT_LENGTH
 
     # Create results that will push the prompt over the limit.
     # Each chunk text is sanitized to MAX_TEXT_LENGTH (100,000).
@@ -342,3 +342,62 @@ def test_rag_build_prompt_max_length_enforced():
 
     with pytest.raises(ValueError, match="Generated prompt too long"):
         build_prompt("query", results)
+
+def test_chunk_validation_enforced():
+    from eaddit.models import Chunk, MAX_TEXT_LENGTH, MAX_ID_LENGTH
+    # text too long
+    with pytest.raises(ValueError, match="Chunk text exceeds limit"):
+        Chunk(id="c1", text="a" * (MAX_TEXT_LENGTH + 1))
+
+    # id too long
+    with pytest.raises(ValueError, match="Chunk id exceeds limit"):
+        Chunk(id="a" * (MAX_ID_LENGTH + 21), text="text")
+
+    # invalid types
+    with pytest.raises(TypeError, match="Chunk id must be a string"):
+        Chunk(id=123, text="text")
+    with pytest.raises(TypeError, match="Chunk text must be a string"):
+        Chunk(id="c1", text=123)
+
+def test_embedder_caches_are_bounded():
+    from eaddit.embedder import HashingEmbedder, _get_token_hash
+    embedder = HashingEmbedder(dim=256)
+
+    # Embedding cache is 1024
+    # Token cache is 10000
+
+    # We can't easily check the internal state of lru_cache without
+    # accessing protected attributes, but we can verify it exists.
+    assert hasattr(embedder._get_embedding_cached, "cache_info")
+    assert embedder._get_embedding_cached.cache_info().maxsize == 1024
+
+    assert hasattr(_get_token_hash, "cache_info")
+    assert _get_token_hash.cache_info().maxsize == 10000
+
+def test_embedder_cache_bypass_long_strings():
+    from eaddit.embedder import HashingEmbedder, get_token_hash
+    from eaddit.models import MAX_CACHE_LENGTH
+
+    # Verify that long strings bypass the cache.
+    # We can check this by verifying that the cache info doesn't change
+    # when processing a long string.
+
+    embedder = HashingEmbedder(dim=256)
+    long_text = "a" * (MAX_CACHE_LENGTH + 1)
+
+    info_before = embedder._get_embedding_cached.cache_info()
+    embedder.embed([long_text])
+    info_after = embedder._get_embedding_cached.cache_info()
+
+    assert info_before.misses == info_after.misses
+    assert info_before.hits == info_after.hits
+
+    # Verify token cache bypass
+    from eaddit.embedder import _get_token_hash
+    long_token = "b" * 65
+    info_before = _get_token_hash.cache_info()
+    get_token_hash(long_token, 256)
+    info_after = _get_token_hash.cache_info()
+
+    assert info_before.misses == info_after.misses
+    assert info_before.hits == info_after.hits

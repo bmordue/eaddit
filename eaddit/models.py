@@ -172,6 +172,19 @@ class Chunk:
     metadata: Dict[str, Any] = field(default_factory=dict)
     content_hash: str = ""
 
+    def __post_init__(self) -> None:
+        # Security: Validate types and lengths for defense-in-depth.
+        # Chunk IDs are derived from post/comment IDs plus an optional index,
+        # so we allow a bit of extra room.
+        for field_name, value, limit in [
+            ("id", self.id, MAX_ID_LENGTH + 20),
+            ("text", self.text, MAX_TEXT_LENGTH),
+        ]:
+            if not isinstance(value, str):
+                raise TypeError(f"Chunk {field_name} must be a string")
+            if len(value) > limit:
+                raise ValueError(f"Chunk {field_name} exceeds limit of {limit}")
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "id": self.id,
