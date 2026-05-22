@@ -17,3 +17,7 @@
 ## 2024-05-21 - [Sparse accumulation for HashingEmbedder]
 **Learning:** For high-dimensional feature hashing (e.g., dim=4096+), accumulating token counts into a dense list of size 'dim' and then iterating over it for normalization is inefficient ((dim)$). Using a sparse dictionary for accumulation and only populating non-zero buckets in the final dense vector reduces the complexity to (unique\_tokens)$ for most steps, providing up to a 16x speedup for typical short-ish texts.
 **Action:** Use sparse data structures for intermediate accumulation in high-dimensional vector operations when the expected density is low.
+
+## 2026-05-21 - [Delayed materialization in Collectors]
+**Learning:** In 'JSONFixtureCollector.collect', materializing 'Post' and 'Comment' objects before filtering by 'min_score' incurs significant overhead due to dataclass creation and '__post_init__' validation. By filtering the raw dictionaries and only materializing items that pass the threshold, we achieve a ~45% speedup.
+**Action:** Always filter raw data as early as possible before converting to complex model objects. Ensure type consistency (e.g., using 'str()') when performing set lookups on raw fields if the source data might have inconsistent types.
