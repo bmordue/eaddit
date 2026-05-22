@@ -26,7 +26,11 @@ MAX_ANCESTORS = 20
 MAX_DIMENSION = 10000
 MAX_COLLECT_LIMIT = 1000
 MAX_CHUNK_SIZE = 4096
+# Security: Prevent excessive fragmentation and overhead.
+MIN_CHUNK_SIZE = 4
 MAX_BATCH_SIZE = 1024
+# Security: Prevent memory exhaustion during RAG prompt construction.
+MAX_PROMPT_LENGTH = 1_000_000
 
 
 @dataclass(frozen=True)

@@ -24,7 +24,7 @@ from .chunker import Chunker
 from .collector import Collector, JSONFixtureCollector
 from .embedder import Embedder, HashingEmbedder
 from .ingest import IngestionPipeline
-from .models import MAX_BATCH_SIZE, MAX_CHUNK_SIZE, MAX_COLLECT_LIMIT
+from .models import MAX_CHUNK_SIZE, MAX_COLLECT_LIMIT, MIN_CHUNK_SIZE
 from .rag import MAX_QUERY_LENGTH, MAX_TOP_K, RAGQueryEngine, build_prompt
 from .store import InMemoryVectorStore
 
@@ -89,8 +89,12 @@ def _make_metadata_filter(
 # Subcommand handlers
 # ---------------------------------------------------------------------- #
 def cmd_ingest(args: argparse.Namespace) -> int:
+    if args.limit < 1:
+        raise SystemExit("limit must be at least 1")
     if args.limit > MAX_COLLECT_LIMIT:
         raise SystemExit(f"limit too large ({args.limit} > {MAX_COLLECT_LIMIT})")
+    if args.chunk_size < MIN_CHUNK_SIZE:
+        raise SystemExit(f"chunk-size must be at least {MIN_CHUNK_SIZE}")
     if args.chunk_size > MAX_CHUNK_SIZE:
         raise SystemExit(
             f"chunk-size too large ({args.chunk_size} > {MAX_CHUNK_SIZE})"

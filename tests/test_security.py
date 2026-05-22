@@ -280,3 +280,65 @@ def test_store_search_top_k_limit_enforced():
     store = InMemoryVectorStore(dimension=256)
     with pytest.raises(ValueError, match="top_k too large"):
         store.search([0.0]*256, top_k=MAX_TOP_K + 1)
+
+def test_chunker_min_chunk_size_enforced():
+    from eaddit.models import MIN_CHUNK_SIZE
+    with pytest.raises(ValueError, match="chunk_size must be at least"):
+        Chunker(chunk_size=MIN_CHUNK_SIZE - 1)
+
+def test_cli_ingest_min_chunk_size_enforced():
+    from eaddit.cli import cmd_ingest
+    from eaddit.models import MIN_CHUNK_SIZE
+    args = argparse.Namespace(
+        subreddit="test",
+        limit=10,
+        store="store.json",
+        source="json",
+        fixture="fixture.json",
+        dim=256,
+        chunk_size=MIN_CHUNK_SIZE - 1,
+        chunk_overlap=1,
+        flat_comments=False,
+        state=None,
+        full=False
+    )
+    with pytest.raises(SystemExit, match="chunk-size must be at least"):
+        cmd_ingest(args)
+
+def test_cli_ingest_min_limit_enforced():
+    from eaddit.cli import cmd_ingest
+    args = argparse.Namespace(
+        subreddit="test",
+        limit=0,
+        store="store.json",
+        source="json",
+        fixture="fixture.json",
+        dim=256,
+        chunk_size=256,
+        chunk_overlap=32,
+        flat_comments=False,
+        state=None,
+        full=False
+    )
+    with pytest.raises(SystemExit, match="limit must be at least 1"):
+        cmd_ingest(args)
+
+def test_collectors_min_limit_enforced():
+    from eaddit.collector import JSONFixtureCollector
+    collector = JSONFixtureCollector({})
+    with pytest.raises(ValueError, match="limit must be at least 1"):
+        collector.collect("test", limit=0)
+
+def test_rag_build_prompt_max_length_enforced():
+    from eaddit.rag import build_prompt, RetrievalResult, Chunk
+    from eaddit.models import MAX_PROMPT_LENGTH, MAX_TEXT_LENGTH
+
+    # Create results that will push the prompt over the limit.
+    # Each chunk text is sanitized to MAX_TEXT_LENGTH (100,000).
+    # We need enough results to exceed MAX_PROMPT_LENGTH (1,000_000).
+    chunk = Chunk(id="c1", text="a" * MAX_TEXT_LENGTH)
+    result = RetrievalResult(chunk=chunk, score=1.0)
+    results = [result] * 11  # ~1.1M characters
+
+    with pytest.raises(ValueError, match="Generated prompt too long"):
+        build_prompt("query", results)

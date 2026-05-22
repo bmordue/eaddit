@@ -25,6 +25,7 @@ from .embedder import Embedder
 from .models import (
     MAX_ANCESTORS,
     MAX_NAME_LENGTH,
+    MAX_PROMPT_LENGTH,
     MAX_QUERY_LENGTH,
     MAX_TOP_K,
     Chunk,
@@ -193,7 +194,10 @@ def build_prompt(query: str, results: Sequence[RetrievalResult]) -> str:
             sections.append(_format_chunk(a, prefix="context: "))
         sections.append(_format_chunk(r.chunk))
     sections.append(f"\nQuestion: {safe_query}\nAnswer:")
-    return "\n".join(sections)
+    prompt = "\n".join(sections)
+    if len(prompt) > MAX_PROMPT_LENGTH:
+        raise ValueError(f"Generated prompt too long ({len(prompt)} > {MAX_PROMPT_LENGTH})")
+    return prompt
 
 
 def _format_chunk(chunk: Chunk, prefix: str = "") -> str:

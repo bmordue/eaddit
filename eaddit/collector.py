@@ -75,6 +75,8 @@ class JSONFixtureCollector(Collector):
         limit: int = 100,
         min_score: int = 0,
     ) -> Tuple[List[Post], List[Comment]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
         if limit > MAX_COLLECT_LIMIT:
             raise ValueError(f"limit too large ({limit} > {MAX_COLLECT_LIMIT})")
         bucket = self._data.get(subreddit, {})
@@ -168,6 +170,8 @@ class PRAWCollector(Collector):  # pragma: no cover - exercised only with networ
         limit: int = 100,
         min_score: int = 0,
     ) -> Tuple[List[Post], List[Comment]]:
+        if limit < 1:
+            raise ValueError("limit must be at least 1")
         if limit > MAX_COLLECT_LIMIT:
             raise ValueError(f"limit too large ({limit} > {MAX_COLLECT_LIMIT})")
         sub = self._reddit.subreddit(subreddit)
