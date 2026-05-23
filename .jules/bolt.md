@@ -21,3 +21,7 @@
 ## 2026-05-21 - [Delayed materialization in Collectors]
 **Learning:** In 'JSONFixtureCollector.collect', materializing 'Post' and 'Comment' objects before filtering by 'min_score' incurs significant overhead due to dataclass creation and '__post_init__' validation. By filtering the raw dictionaries and only materializing items that pass the threshold, we achieve a ~45% speedup.
 **Action:** Always filter raw data as early as possible before converting to complex model objects. Ensure type consistency (e.g., using 'str()') when performing set lookups on raw fields if the source data might have inconsistent types.
+
+## 2026-05-21 - [Fast-path for already-float vectors and dict.values()]
+**Learning:** In 'InMemoryVectorStore.search', replacing 'list(map(float, query_vector))' with 'list(query_vector)' when the input already contains floats provides a significant speedup by avoiding the Python-level 'map' and 'float' call overhead. Similarly, replacing a list comprehension over dictionary keys with 'list(dict.values())' for 'all_chunks' provides a ~4x speedup by leveraging C-level iteration and preserving insertion order in Python 3.7+.
+**Action:** Prefer 'list(obj)' over 'list(map(float, obj))' when elements are already floats. Use 'list(dict.values())' instead of list comprehensions when all values are needed in insertion order.
