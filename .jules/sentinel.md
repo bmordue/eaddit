@@ -17,3 +17,8 @@
 **Vulnerability:** The `HashingEmbedder` used an unbounded dictionary to cache embeddings for all processed texts. In long-running applications or when processing large-scale unique datasets, this leads to continuous memory growth and eventual Denial of Service via OOM.
 **Learning:** Caching mechanisms intended for performance must always be bounded, especially when handling untrusted or high-volume external data. Manual dictionary-based caches are prone to being forgotten during maintenance.
 **Prevention:** Use standardized, size-limited caching decorators like `functools.lru_cache` with a conservative `maxsize` for all in-memory caching of variable-sized or high-cardinality data.
+
+## 2025-06-20 - [Missing Validation in Core Data Chunks]
+**Vulnerability:** While 'Post' and 'Comment' models had strict validation, the 'Chunk' model (the primary unit of storage) lacked length and type checks. This allowed malicious or malformed store files to trigger memory exhaustion or logic errors during loading.
+**Learning:** Security validation must be consistent across all layers of the data model, especially for objects that are serialized and deserialized from external storage.
+**Prevention:** Implement '__post_init__' validation for all core dataclasses, enforcing strict type checks and conservative length limits for all string fields.

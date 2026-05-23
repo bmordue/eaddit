@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-from .models import MAX_BATCH_SIZE, MAX_DIMENSION
+from .models import MAX_BATCH_SIZE, MAX_CACHE_LENGTH, MAX_DIMENSION, MAX_TOKEN_CACHE_SIZE
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -43,40 +43,6 @@ class Embedder(ABC):
         """Convenience wrapper for embedding a single text."""
 
         return self.embed([text])[0]
-
-
-class _HashCache(Dict[str, Tuple[int, float]]):
-    """Specialised cache that performs blake2b hashing on missing items.
-
-    This class avoids the overhead of repeated 'if token in cache' checks by
-    leveraging the '__missing__' protocol. It also uses '.copy()' on a
-    pre-configured hash object for faster hashing.
-    """
-
-    def __init__(self, dim: int) -> None:
-        super().__init__()
-        self._dim = dim
-        # Pre-configure the blake2b hasher to avoid repeated object creation.
-        self._base_hasher = hashlib.blake2b(digest_size=8)
-
-    def __missing__(self, key: str) -> Tuple[int, float]:
-        # Hash the token using a copy of the pre-configured hasher.
-        h = self._base_hasher.copy()
-        h.update(key.encode("utf-8"))
-        digest = h.digest()
-
-        # Performance optimization: struct.unpack_from is faster than
-        # int.from_bytes() for extracting integers from bytes.
-        # '>I' is big-endian 4-byte unsigned int.
-        bucket = struct.unpack_from(">I", digest)[0] % self._dim
-
-        # The 5th byte's lowest bit decides the sign — keeps the embedding
-        # roughly zero-mean for unrelated tokens.
-        sign = 1.0 if (digest[4] & 1) == 0 else -1.0
-
-        val = (bucket, sign)
-        self[key] = val
-        return val
 
 
 class HashingEmbedder(Embedder):
@@ -102,13 +68,47 @@ class HashingEmbedder(Embedder):
             raise ValueError(f"batch_size too large ({batch_size} > {MAX_BATCH_SIZE})")
         self._dim = dim
         self._batch_size = batch_size
-        self._hash_cache = _HashCache(dim)
+        # Pre-configure the blake2b hasher to avoid repeated object creation.
+        self._base_hasher = hashlib.blake2b(digest_size=8)
+
+    def _get_embedding(self, text: str) -> List[float]:
+        # Security: Avoid caching very long strings to prevent memory exhaustion
+        # (OOM) in the LRU cache.
+        if len(text) > MAX_CACHE_LENGTH:
+            return self._embed_one(text)
+        return self._get_embedding_cached(text)
 
     @lru_cache(maxsize=1024)
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding_cached(self, text: str) -> List[float]:
         # Performance optimization: use persistent LRU cache to avoid redundant
         # calculations across calls while preventing memory exhaustion.
         return self._embed_one(text)
+
+    def _get_token_hash(self, token: str) -> Tuple[int, float]:
+        # Security: Avoid caching very long tokens to prevent memory exhaustion.
+        if len(token) > 64:
+            return self._do_hash(token)
+        return self._get_token_hash_cached(token)
+
+    @lru_cache(maxsize=MAX_TOKEN_CACHE_SIZE)
+    def _get_token_hash_cached(self, token: str) -> Tuple[int, float]:
+        return self._do_hash(token)
+
+    def _do_hash(self, token: str) -> Tuple[int, float]:
+        # Hash the token using a copy of the pre-configured hasher.
+        h = self._base_hasher.copy()
+        h.update(token.encode("utf-8"))
+        digest = h.digest()
+
+        # Performance optimization: struct.unpack_from is faster than
+        # int.from_bytes() for extracting integers from bytes.
+        # '>I' is big-endian 4-byte unsigned int.
+        bucket = struct.unpack_from(">I", digest)[0] % self._dim
+
+        # The 5th byte's lowest bit decides the sign — keeps the embedding
+        # roughly zero-mean for unrelated tokens.
+        sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+        return (bucket, sign)
 
     @property
     def dimension(self) -> int:
@@ -145,9 +145,8 @@ class HashingEmbedder(Embedder):
         # vector is significantly faster than O(dim) work on a dense array.
         # This provides up to a 10x-16x speedup for dim=4096.
         sparse_vec: Dict[int, float] = {}
-        cache = self._hash_cache
         for token, count in counts.items():
-            bucket, sign = cache[token]
+            bucket, sign = self._get_token_hash(token)
             sparse_vec[bucket] = sparse_vec.get(bucket, 0.0) + sign * count
 
         # Use math.hypot on the sparse values to compute the norm efficiently.
