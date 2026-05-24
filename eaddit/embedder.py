@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-from .models import MAX_BATCH_SIZE, MAX_DIMENSION
+from .models import MAX_BATCH_SIZE, MAX_DIMENSION, MAX_TOKEN_CACHE_SIZE
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -75,7 +75,8 @@ class _HashCache(Dict[str, Tuple[int, float]]):
         sign = 1.0 if (digest[4] & 1) == 0 else -1.0
 
         val = (bucket, sign)
-        self[key] = val
+        if len(self) < MAX_TOKEN_CACHE_SIZE:
+            self[key] = val
         return val
 
 

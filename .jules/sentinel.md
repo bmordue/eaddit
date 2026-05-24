@@ -17,3 +17,8 @@
 **Vulnerability:** The `HashingEmbedder` used an unbounded dictionary to cache embeddings for all processed texts. In long-running applications or when processing large-scale unique datasets, this leads to continuous memory growth and eventual Denial of Service via OOM.
 **Learning:** Caching mechanisms intended for performance must always be bounded, especially when handling untrusted or high-volume external data. Manual dictionary-based caches are prone to being forgotten during maintenance.
 **Prevention:** Use standardized, size-limited caching decorators like `functools.lru_cache` with a conservative `maxsize` for all in-memory caching of variable-sized or high-cardinality data.
+
+## 2025-07-10 - [Memory Exhaustion via Unbounded Token Cache]
+**Vulnerability:** The `_HashCache` in `HashingEmbedder` used a dictionary to store token-to-bucket mappings for all processed tokens. Since the vocabulary is derived from untrusted Reddit content, an attacker could provide a large number of unique "tokens" (e.g., random strings) to cause continuous memory growth and eventual OOM.
+**Learning:** Even low-level internal caches must be bounded if their keys are derived from external, untrusted input. Standard Python dictionaries used as caches are particularly dangerous as they lack a built-in size limit.
+**Prevention:** Always enforce a hard limit on the number of entries in a cache. If the limit is reached, fall back to re-computing the value for new keys without storing them in the cache.

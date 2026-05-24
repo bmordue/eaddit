@@ -331,7 +331,7 @@ def test_collectors_min_limit_enforced():
 
 def test_rag_build_prompt_max_length_enforced():
     from eaddit.rag import build_prompt, RetrievalResult, Chunk
-    from eaddit.models import MAX_PROMPT_LENGTH, MAX_TEXT_LENGTH
+    from eaddit.models import MAX_TEXT_LENGTH
 
     # Create results that will push the prompt over the limit.
     # Each chunk text is sanitized to MAX_TEXT_LENGTH (100,000).
@@ -342,3 +342,47 @@ def test_rag_build_prompt_max_length_enforced():
 
     with pytest.raises(ValueError, match="Generated prompt too long"):
         build_prompt("query", results)
+
+def test_chunk_validation():
+    from eaddit.models import Chunk, MAX_ID_LENGTH, MAX_TEXT_LENGTH
+
+    # Valid chunk
+    Chunk(id="c1", text="valid")
+
+    # Invalid ID length
+    with pytest.raises(ValueError, match="Chunk id exceeds limit"):
+        Chunk(id="a" * (MAX_ID_LENGTH + 21), text="valid")
+
+    # Invalid ID type
+    with pytest.raises(TypeError, match="Chunk id must be a string"):
+        Chunk(id=123, text="valid")
+
+    # Invalid text length
+    with pytest.raises(ValueError, match="Chunk text exceeds limit"):
+        Chunk(id="c1", text="a" * (MAX_TEXT_LENGTH + 1))
+
+    # Invalid text type
+    with pytest.raises(TypeError, match="Chunk text must be a string"):
+        Chunk(id="c1", text=123)
+
+def test_embedder_token_cache_bounded():
+    from eaddit.embedder import HashingEmbedder
+    from eaddit.models import MAX_TOKEN_CACHE_SIZE
+
+    # We use a small dimension to keep it simple.
+    embedder = HashingEmbedder(dim=16)
+    cache = embedder._hash_cache
+
+    # Fill the cache
+    for i in range(MAX_TOKEN_CACHE_SIZE):
+        cache[str(i)] = (0, 1.0)
+
+    assert len(cache) == MAX_TOKEN_CACHE_SIZE
+
+    # Try to add one more via the __missing__ path
+    # embed_one will call _WORD_RE.findall which will find "newtoken"
+    embedder.embed_one("newtoken")
+
+    # Cache size should still be MAX_TOKEN_CACHE_SIZE
+    assert len(cache) == MAX_TOKEN_CACHE_SIZE
+    assert "newtoken" not in cache

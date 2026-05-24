@@ -31,6 +31,8 @@ MIN_CHUNK_SIZE = 4
 MAX_BATCH_SIZE = 1024
 # Security: Prevent memory exhaustion during RAG prompt construction.
 MAX_PROMPT_LENGTH = 1_000_000
+# Security: Bounded cache for token hashes to prevent DoS via memory growth.
+MAX_TOKEN_CACHE_SIZE = 10_000
 
 
 @dataclass(frozen=True)
@@ -171,6 +173,19 @@ class Chunk:
     text: str
     metadata: Dict[str, Any] = field(default_factory=dict)
     content_hash: str = ""
+
+    def __post_init__(self) -> None:
+        # Security: Validate types and lengths to prevent memory exhaustion from
+        # untrusted or corrupted store files.
+        if not isinstance(self.id, str):
+            raise TypeError("Chunk id must be a string")
+        if len(self.id) > MAX_ID_LENGTH + 20:  # +20 for chunk index suffix
+            raise ValueError(f"Chunk id exceeds limit of {MAX_ID_LENGTH + 20}")
+
+        if not isinstance(self.text, str):
+            raise TypeError("Chunk text must be a string")
+        if len(self.text) > MAX_TEXT_LENGTH:
+            raise ValueError(f"Chunk text exceeds limit of {MAX_TEXT_LENGTH}")
 
     def to_dict(self) -> Dict[str, Any]:
         return {
