@@ -66,7 +66,9 @@ class InMemoryVectorStore:
         return chunk_id in self._chunks
 
     def all_chunks(self) -> List[Chunk]:
-        return [self._chunks[cid] for cid in self._ids]
+        # Performance optimization: list(dict.values()) is significantly faster
+        # than a list comprehension for large stores.
+        return list(self._chunks.values())
 
     def get(self, chunk_id: str) -> Optional[Chunk]:
         return self._chunks.get(chunk_id)
@@ -148,12 +150,14 @@ class InMemoryVectorStore:
         # Normalize query vector.
         q_norm = math.hypot(*query_vector) or 1.0
         if math.isclose(q_norm, 1.0, rel_tol=1e-9):
-            q_vec = list(map(float, query_vector))
+            # Performance optimization: skip redundant float conversion for
+            # already-normalized vectors.
+            q_vec = list(query_vector)
         else:
             # Performance optimization: multiply by reciprocal instead of repeated
-            # division in the loop.
+            # division in the loop, and skip redundant float() cast.
             inv_norm = 1.0 / q_norm
-            q_vec = [float(x) * inv_norm for x in query_vector]
+            q_vec = [x * inv_norm for x in query_vector]
 
         if metadata_filter is None:
             # Performance optimization: use map() with math.dist and itertools.repeat
