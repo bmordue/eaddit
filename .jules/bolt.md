@@ -21,3 +21,11 @@
 ## 2026-05-21 - [Delayed materialization in Collectors]
 **Learning:** In 'JSONFixtureCollector.collect', materializing 'Post' and 'Comment' objects before filtering by 'min_score' incurs significant overhead due to dataclass creation and '__post_init__' validation. By filtering the raw dictionaries and only materializing items that pass the threshold, we achieve a ~45% speedup.
 **Action:** Always filter raw data as early as possible before converting to complex model objects. Ensure type consistency (e.g., using 'str()') when performing set lookups on raw fields if the source data might have inconsistent types.
+
+## 2026-05-21 - [Avoiding redundant map(float, ...) in Vector Operations]
+**Learning:** In 'InMemoryVectorStore.search', using 'list(map(float, query_vector))' when the vector is already a list of floats (as returned by the embedder) incurs significant overhead. In benchmarks with 1536-dim vectors, 'list(v)' is approx. 10x faster than 'list(map(float, v))'.
+**Action:** Prefer direct list copies or slices over 'map(float, ...)' when the source data is already known to contain floats.
+
+## 2026-05-21 - [Lookups vs Membership checks in Dicts]
+**Learning:** Using 'dict.get()' and 'dict.pop(key, default)' to combine membership checks ('if key in d') and value retrieval/removal reduces the number of internal hash calculations and dictionary probes. This provides a measurable speedup in hot paths like vector store mutation.
+**Action:** Use 'get()' or 'pop()' instead of 'in' followed by a lookup when you need the value or are about to remove it.

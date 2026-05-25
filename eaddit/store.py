@@ -96,9 +96,9 @@ class InMemoryVectorStore:
             else:
                 v_list = list(vec)
 
-            if chunk.id in self._chunks:
+            idx = self._id_to_idx.get(chunk.id)
+            if idx is not None:
                 # Update existing ($O(1)$ lookup via _id_to_idx)
-                idx = self._id_to_idx[chunk.id]
                 self._chunks[chunk.id] = chunk
                 self._vectors[idx] = v_list
                 self._metadata[idx] = chunk.metadata
@@ -112,9 +112,11 @@ class InMemoryVectorStore:
                 self._id_to_idx[chunk.id] = idx
 
     def delete(self, chunk_id: str) -> bool:
-        if chunk_id not in self._chunks:
+        # Performance optimization: use .pop() with a default to combine membership
+        # check and index retrieval into a single dictionary lookup.
+        idx = self._id_to_idx.pop(chunk_id, None)
+        if idx is None:
             return False
-        idx = self._id_to_idx.pop(chunk_id)
         self._ids.pop(idx)
         self._chunks.pop(chunk_id)
         self._vectors.pop(idx)
@@ -148,12 +150,14 @@ class InMemoryVectorStore:
         # Normalize query vector.
         q_norm = math.hypot(*query_vector) or 1.0
         if math.isclose(q_norm, 1.0, rel_tol=1e-9):
-            q_vec = list(map(float, query_vector))
+            # Performance optimization: avoid list(map(float, ...)) as query_vector
+            # is typically already a list of floats from the embedder.
+            q_vec = list(query_vector)
         else:
             # Performance optimization: multiply by reciprocal instead of repeated
             # division in the loop.
             inv_norm = 1.0 / q_norm
-            q_vec = [float(x) * inv_norm for x in query_vector]
+            q_vec = [x * inv_norm for x in query_vector]
 
         if metadata_filter is None:
             # Performance optimization: use map() with math.dist and itertools.repeat

@@ -214,11 +214,15 @@ def sanitize(value: Optional[str], limit: Optional[int] = 200) -> Optional[str]:
     # huge values (e.g. raw bodies) which could lead to OOM.
     s = str(value)
     if limit is not None:
-        s = s[:limit]
+        # Performance optimization: avoid slicing if the string is already short,
+        # which prevents unnecessary string copies.
+        if len(s) > limit:
+            s = s[:limit]
     else:
         # Security: Enforce a hard limit even when no limit is requested
         # to prevent processing of extremely large strings.
-        s = s[:MAX_TEXT_LENGTH]
+        if len(s) > MAX_TEXT_LENGTH:
+            s = s[:MAX_TEXT_LENGTH]
 
     # Security: Avoid caching very long strings (e.g. from post bodies) to prevent
     # memory exhaustion in the LRU cache.

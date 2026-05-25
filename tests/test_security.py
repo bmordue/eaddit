@@ -331,7 +331,7 @@ def test_collectors_min_limit_enforced():
 
 def test_rag_build_prompt_max_length_enforced():
     from eaddit.rag import build_prompt, RetrievalResult, Chunk
-    from eaddit.models import MAX_PROMPT_LENGTH, MAX_TEXT_LENGTH
+    from eaddit.models import MAX_TEXT_LENGTH
 
     # Create results that will push the prompt over the limit.
     # Each chunk text is sanitized to MAX_TEXT_LENGTH (100,000).
