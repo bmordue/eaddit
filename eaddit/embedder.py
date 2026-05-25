@@ -21,7 +21,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Dict, Iterable, List, Sequence, Tuple
 
-from .models import MAX_BATCH_SIZE, MAX_DIMENSION
+from .models import MAX_BATCH_SIZE, MAX_CACHE_LENGTH, MAX_DIMENSION
 
 # A simple word tokeniser. We deliberately avoid heavy dependencies here.
 _WORD_RE = re.compile(r"[A-Za-z0-9_']+")
@@ -45,38 +45,27 @@ class Embedder(ABC):
         return self.embed([text])[0]
 
 
-class _HashCache(Dict[str, Tuple[int, float]]):
-    """Specialised cache that performs blake2b hashing on missing items.
+@lru_cache(maxsize=10000)
+def _get_token_hash(token: str, dim: int) -> Tuple[int, float]:
+    """Compute deterministic hash for a token. Bounded via lru_cache."""
+    h = hashlib.blake2b(token.encode("utf-8"), digest_size=8)
+    digest = h.digest()
+    bucket = struct.unpack_from(">I", digest)[0] % dim
+    sign = 1.0 if (digest[4] & 1) == 0 else -1.0
+    return bucket, sign
 
-    This class avoids the overhead of repeated 'if token in cache' checks by
-    leveraging the '__missing__' protocol. It also uses '.copy()' on a
-    pre-configured hash object for faster hashing.
-    """
 
-    def __init__(self, dim: int) -> None:
-        super().__init__()
-        self._dim = dim
-        # Pre-configure the blake2b hasher to avoid repeated object creation.
-        self._base_hasher = hashlib.blake2b(digest_size=8)
-
-    def __missing__(self, key: str) -> Tuple[int, float]:
-        # Hash the token using a copy of the pre-configured hasher.
-        h = self._base_hasher.copy()
-        h.update(key.encode("utf-8"))
+def get_token_hash(token: str, dim: int) -> Tuple[int, float]:
+    """Get token hash, bypassing cache for extremely long tokens."""
+    # Security: Limit token length for caching to avoid memory exhaustion
+    # from many unique long strings.
+    if len(token) > 64:
+        h = hashlib.blake2b(token.encode("utf-8"), digest_size=8)
         digest = h.digest()
-
-        # Performance optimization: struct.unpack_from is faster than
-        # int.from_bytes() for extracting integers from bytes.
-        # '>I' is big-endian 4-byte unsigned int.
-        bucket = struct.unpack_from(">I", digest)[0] % self._dim
-
-        # The 5th byte's lowest bit decides the sign — keeps the embedding
-        # roughly zero-mean for unrelated tokens.
+        bucket = struct.unpack_from(">I", digest)[0] % dim
         sign = 1.0 if (digest[4] & 1) == 0 else -1.0
-
-        val = (bucket, sign)
-        self[key] = val
-        return val
+        return bucket, sign
+    return _get_token_hash(token, dim)
 
 
 class HashingEmbedder(Embedder):
@@ -102,10 +91,16 @@ class HashingEmbedder(Embedder):
             raise ValueError(f"batch_size too large ({batch_size} > {MAX_BATCH_SIZE})")
         self._dim = dim
         self._batch_size = batch_size
-        self._hash_cache = _HashCache(dim)
+
+    def _get_embedding(self, text: str) -> List[float]:
+        # Performance & Security: Bypass cache for very long strings to prevent
+        # memory exhaustion.
+        if len(text) > MAX_CACHE_LENGTH:
+            return self._embed_one(text)
+        return self._get_embedding_cached(text)
 
     @lru_cache(maxsize=1024)
-    def _get_embedding(self, text: str) -> List[float]:
+    def _get_embedding_cached(self, text: str) -> List[float]:
         # Performance optimization: use persistent LRU cache to avoid redundant
         # calculations across calls while preventing memory exhaustion.
         return self._embed_one(text)
@@ -145,9 +140,9 @@ class HashingEmbedder(Embedder):
         # vector is significantly faster than O(dim) work on a dense array.
         # This provides up to a 10x-16x speedup for dim=4096.
         sparse_vec: Dict[int, float] = {}
-        cache = self._hash_cache
+        dim = self._dim
         for token, count in counts.items():
-            bucket, sign = cache[token]
+            bucket, sign = get_token_hash(token, dim)
             sparse_vec[bucket] = sparse_vec.get(bucket, 0.0) + sign * count
 
         # Use math.hypot on the sparse values to compute the norm efficiently.
